@@ -6,7 +6,7 @@ class HttpUtils {
 	 * 获取 refer URL 地址
 	 * @return Ambigous <string, unknown>
 	 */
-	public static function refer_url(){
+	public static function refer_url() {
 		return isset($_SERVER['HTTP_REFERER']) ? $_SERVER['HTTP_REFERER'] : '';
 	}
 	
@@ -14,10 +14,18 @@ class HttpUtils {
 	 * 获取当前页面的 URL 地址
 	 * @return string
 	 */
-	public static function this_url(){
+	public static function this_url() {
 		$s_url = isset($_SERVER['HTTPS']) && $_SERVER['HTTPS'] ? 'https' : 'http';
 		$s_url .= '://';
 		return $s_url . $_SERVER['SERVER_NAME'] . $_SERVER['REQUEST_URI'];
+	}
+	
+	/**
+	 * 判断是否是AJAX请求
+	 * @return boolean
+	 */
+	public static function is_ajax() {
+		return isset($_SERVER['HTTP_X_REQUESTED_WITH']) and ($_SERVER['HTTP_X_REQUESTED_WITH'] == 'XMLHttpRequest');
 	}
 	
 	/**

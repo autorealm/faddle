@@ -10,12 +10,6 @@ use Qiniu\Storage\BucketManager;
 use Qiniu\Processing\PersistentFop;
 use Qiniu\Auth;
 
-if (! defined('QINIU_ACCESS_KEY'))
-define('QINIU_ACCESS_KEY', 'kNgRCQbi_88yhtzwrDJXtpcufhjPN5wAcXa3W7Yb');
-
-if (! defined('QINIU_SECRET_KEY'))
-define('QINIU_SECRET_KEY', 'kq50WRhog_KGe_K04NY-Q4ejFMOdrqkAh6HfavHy');
-
 class QiniuHelper {
 
 	const STORAGE_TYPE_FILE = 1;
@@ -66,13 +60,7 @@ class QiniuHelper {
 		
 	}
 
-	public static function get_qiniu_auth($accessKey=null, $secretKey=null) {
-		if (! $accessKey or ! $secretKey) {
-			$accessKey = QINIU_ACCESS_KEY;
-			$secretKey = QINIU_SECRET_KEY;
-		} else {
-			self::$auth = new Auth($accessKey, $secretKey);
-		}
+	public static function get_qiniu_auth($accessKey, $secretKey) {
 		if (! self::$auth) self::$auth = new Auth($accessKey, $secretKey);
 		
 		return self::$auth;

@@ -1,10 +1,10 @@
-<?php namespace Faddle\Commmon\Util;
+<?php namespace Faddle\Common\Util;
 
 
 class TextUtils {
 
-	public static $HC = array('∵', '&', '"', "'", '“', '”', '—', '<', '>', '·', '…');
-	public static $EC = array(' ', '&amp;', '&quot;', '&#039;', '&ldquo;', '&rdquo;', '&mdash;', '&lt;', '&gt;', '&middot;', '&hellip;');
+	static $HC = array('∵', '&', '"', "'", '“', '”', '—', '<', '>', '·', '…');
+	static $EC = array(' ', '&amp;', '&quot;', '&#039;', '&ldquo;', '&rdquo;', '&mdash;', '&lt;', '&gt;', '&middot;', '&hellip;');
 
 	/**
 	 * 截取字符串（支持中文）
@@ -24,6 +24,38 @@ class TextUtils {
 			return $str;
 		}
 		return substr($string, $begin, $length);
+	}
+
+	/**
+	 * 字符串截取，支持中文和其他编码
+	 *
+	 * @param string $str 需要转换的字符串
+	 * @param string $start 开始位置
+	 * @param string $length 截取长度
+	 * @param string $charset 编码格式
+	 * @param string $suffix 截断显示字符
+	 * @return string
+	 */
+	public static function ucutstr($str, $start = 0, $length, $charset = "utf-8", $suffix = true) {
+		if (function_exists("mb_substr")) {
+			$i_str_len = mb_strlen($str);
+			$s_sub_str = mb_substr($str, $start, $length, $charset);
+			if ($length >= $i_str_len) {
+				return $s_sub_str;
+			}
+			return $s_sub_str . '...';
+		} elseif (function_exists('iconv_substr')) {
+			return iconv_substr($str, $start, $length, $charset);
+		}
+		$re['utf-8'] = "/[\x01-\x7f]|[\xc2-\xdf][\x80-\xbf]|[\xe0-\xef][\x80-\xbf]{2}|[\xf0-\xff][\x80-\xbf]{3}/";
+		$re['gb2312'] = "/[\x01-\x7f]|[\xb0-\xf7][\xa0-\xfe]/";
+		$re['gbk'] = "/[\x01-\x7f]|[\x81-\xfe][\x40-\xfe]/";
+		$re['big5'] = "/[\x01-\x7f]|[\x81-\xfe]([\x40-\x7e]|\xa1-\xfe])/";
+		preg_match_all($re[$charset], $str, $match);
+		$slice = join("", array_slice($match[0], $start, $length));
+		if ($suffix)
+			return $slice . "…";
+		return $slice;
 	}
 
 	/**
@@ -82,38 +114,6 @@ class TextUtils {
 		} else {
 			return $string;
 		}
-	}
-
-	/**
-	 * 字符串截取，支持中文和其他编码
-	 *
-	 * @param string $str 需要转换的字符串
-	 * @param string $start 开始位置
-	 * @param string $length 截取长度
-	 * @param string $charset 编码格式
-	 * @param string $suffix 截断显示字符
-	 * @return string
-	 */
-	public static function msubstr($str, $start = 0, $length, $charset = "utf-8", $suffix = true) {
-		if (function_exists("mb_substr")) {
-			$i_str_len = mb_strlen($str);
-			$s_sub_str = mb_substr($str, $start, $length, $charset);
-			if ($length >= $i_str_len) {
-				return $s_sub_str;
-			}
-			return $s_sub_str . '...';
-		} elseif (function_exists('iconv_substr')) {
-			return iconv_substr($str, $start, $length, $charset);
-		}
-		$re['utf-8'] = "/[\x01-\x7f]|[\xc2-\xdf][\x80-\xbf]|[\xe0-\xef][\x80-\xbf]{2}|[\xf0-\xff][\x80-\xbf]{3}/";
-		$re['gb2312'] = "/[\x01-\x7f]|[\xb0-\xf7][\xa0-\xfe]/";
-		$re['gbk'] = "/[\x01-\x7f]|[\x81-\xfe][\x40-\xfe]/";
-		$re['big5'] = "/[\x01-\x7f]|[\x81-\xfe]([\x40-\x7e]|\xa1-\xfe])/";
-		preg_match_all($re[$charset], $str, $match);
-		$slice = join("", array_slice($match[0], $start, $length));
-		if ($suffix)
-			return $slice . "…";
-		return $slice;
 	}
 
 	/**
@@ -323,16 +323,6 @@ class TextUtils {
 		return $str;
 	}
 
-	public static function url_encode($str, $charset='gbk') {
-		if ($charset == 'gbk') {
-			$result = RawUrlEncode($str);
-		} else {
-			$key = mb_convert_encoding($str, 'utf-8', 'gbk');
-			$result = urlencode($key);
-		}
-		return $result;
-	}
-
 	/**
 	 * 转换文本中的换行符为HTML格式
 	 */
@@ -402,6 +392,30 @@ class TextUtils {
 	 */
 	public static function remove_xss($string) {
 		$string = preg_replace('/[\x00-\x08\x0B\x0C\x0E-\x1F\x7F]+/S', '', $string);
+		$words = array(
+			'javascript', 'expression', 'vbscript', 'script', 'base64',
+			'applet', 'alert', 'document', 'write', 'cookie', 'window'
+		);
+		foreach ($words as $word) {
+			$temp = '';
+			for ($i = 0, $wordlen = strlen($word); $i < $wordlen; $i++) {
+				$temp .= substr($word, $i, 1)."\s*";
+			}
+			// We only want to do this when it is followed by a non-word character
+			// That way valid stuff like "dealer to" does not become "dealerto"
+			$string = preg_replace_callback('#('.substr($temp, 0, -3).')(\W)#is', function($matches){
+						return preg_replace('/\s+/s', '', $matches[1]).$matches[2];
+					}, $string);
+		}
+		
+		$naughty = 'alert|applet|audio|basefont|base|behavior|bgsound|blink|body|embed|expression|form|frameset|frame|head|html|'
+				. 'ilayer|iframe|input|isindex|layer|link|meta|object|plaintext|style|script|textarea|title|video|xml|xss';
+		$string = preg_replace_callback('#<(/*\s*)('.$naughty.')([^><]*)([><]*)#is', function($matches){
+					// encode opening brace
+					$str = '&lt;'.$matches[1].$matches[2].$matches[3];
+					// encode captured opening or closing brace to prevent recursive vectors
+					return $str .= str_replace(array('>', '<'), array('&gt;', '&lt;'), $matches[4]);
+				}, $string);
 		
 		return $string;
 	}
@@ -445,6 +459,25 @@ class TextUtils {
 		}
 		
 		return FALSE;
+	}
+
+	/**
+	 * 检查是否是可作为名称的字符串，仅允许出现单词汉字和有限的其他字符。
+	 *
+	 * @param $allowed string 可使用的字符，可多个
+	 * @param $blacklist array 不可使用的名称数组，需统一小写字母（便于不区分大小写）
+	 * @return boolean
+	 */
+	public static function is_nameable($str, $allowed='', $blacklist=array()) {
+		$str = strtolower($str);
+		$result = (! preg_match('/^[\w\x{00c0}-\x{FFFF}' . preg_quote($allowed, '/') . ']+$/iu', $str))
+			or preg_match('/^[\d]+$/', $str) //一般不允许纯数字
+			or in_array($str, $blacklist);
+		return !$result;
+	}
+
+	public static function encode_html($str) {
+		return str_replace(static::$HC, static::$EC, $str);
 	}
 
 	/**
@@ -577,7 +610,6 @@ class TextUtils {
 	 *
 	 * @param string $data
 	 * @return var
-	 *
 	 */
 	public static function str2var($data) {
 		@eval("\$var = $data;");
@@ -589,7 +621,6 @@ class TextUtils {
 	 *
 	 * @param var $data
 	 * @return string
-	 *
 	 */
 	public static function var2str($data) {
 		return addslashes(var_export($data, true));
@@ -600,7 +631,6 @@ class TextUtils {
 	 *
 	 * @param string $filesize
 	 * @return string
-	 *
 	 */
 	public static function sizestr($filesize) {
 		$filesize = floatval($filesize);
@@ -614,6 +644,55 @@ class TextUtils {
 			$filesize = $filesize . ' Bytes';
 		}
 		return $filesize;
+	}
+
+	/**
+	 * 检查字符串是否是经过序列化的
+	 * @param  mixed $data
+	 * @return boolean
+	 */
+	public static function is_serialized($data) {
+		// If it isn't a string, it isn't serialized
+		if (!is_string($data)) {
+			return false;
+		}
+		$data = trim($data);
+		// Is it the serialized NULL value?
+		if ($data === 'N;') {
+			return true;
+		} elseif ($data === 'b:0;' || $data === 'b:1;') {
+			// Is it a serialized boolean?
+			return true;
+		}
+		$length = strlen($data);
+		// Check some basic requirements of all serialized strings
+		if ($length < 4 || $data[1] !== ':' || ($data[$length - 1] !== ';' && $data[$length - 1] !== '}')) {
+			return false;
+		}
+		
+		return @unserialize($data) !== false;
+	}
+
+	public static function is_ascii($str) {
+		return (preg_match('/[^\x00-\x7F]/S', $str) === 0);
+	}
+
+	/**
+	 * 判断字符串是否为utf8编码，英文和半角字符返回ture
+	 * @param $string
+	 * @return bool
+	 */
+	public static function is_utf8($string) {
+		return preg_match('%^(?:
+						[\x09\x0A\x0D\x20-\x7E] # ASCII
+						| [\xC2-\xDF][\x80-\xBF] # non-overlong 2-byte
+						| \xE0[\xA0-\xBF][\x80-\xBF] # excluding overlongs
+						| [\xE1-\xEC\xEE\xEF][\x80-\xBF]{2} # straight 3-byte
+						| \xED[\x80-\x9F][\x80-\xBF] # excluding surrogates
+						| \xF0[\x90-\xBF][\x80-\xBF]{2} # planes 1-3
+						| [\xF1-\xF3][\x80-\xBF]{3} # planes 4-15
+						| \xF4[\x80-\x8F][\x80-\xBF]{2} # plane 16
+						)*$%xs', $string);
 	}
 
 	/**
@@ -692,215 +771,6 @@ class TextUtils {
 		return $encrypted_data;
 	}
 
-	/**
-	 * Indents a flat JSON string to make it more human-readable.
-	 *
-	 * @param string $json The original JSON string to process.
-	 *
-	 * @return string Indented version of the original JSON string.
-	 */
-	public static function pretty_print_json($json) {
-		$result      = '';
-		$pos         = 0;
-		$strLen      = strlen($json);
-		$indentStr   = '  ';
-		$newLine     = "\n";
-		$prevChar    = '';
-		$outOfQuotes = true;
-		
-		for ($i=0; $i<=$strLen; $i++) {
-			// Grab the next character in the string.
-			$char = substr($json, $i, 1);
-			// Are we inside a quoted string?
-			if ($char == '"' && $prevChar != '\\') {
-				$outOfQuotes = !$outOfQuotes;
-				// If this character is the end of an element,
-				// output a new line and indent the next line.
-			} else if (($char == '}' || $char == ']') && $outOfQuotes) {
-				$result .= $newLine;
-				$pos --;
-				for ($j=0; $j<$pos; $j++) {
-					$result .= $indentStr;
-				}
-			}
-			// Add the character to the result string.
-			$result .= $char;
-			// If the last character was the beginning of an element,
-			// output a new line and indent the next line.
-			if (($char == ',' || $char == '{' || $char == '[') && $outOfQuotes) {
-				$result .= $newLine;
-				if ($char == '{' || $char == '[') {
-					$pos ++;
-				}
-				for ($j = 0; $j < $pos; $j++) {
-					$result .= $indentStr;
-				}
-			}
-			$prevChar = $char;
-		}
-		
-		return $result;
-	}
-
-	public static function is_ascii($str) {
-		return (preg_match('/[^\x00-\x7F]/S', $str) === 0);
-	}
-
-	/**
-	 * 判断字符串是否为utf8编码，英文和半角字符返回ture
-	 * @param $string
-	 * @return bool
-	 */
-	public static function is_utf8($string) {
-		return preg_match('%^(?:
-						[\x09\x0A\x0D\x20-\x7E] # ASCII
-						| [\xC2-\xDF][\x80-\xBF] # non-overlong 2-byte
-						| \xE0[\xA0-\xBF][\x80-\xBF] # excluding overlongs
-						| [\xE1-\xEC\xEE\xEF][\x80-\xBF]{2} # straight 3-byte
-						| \xED[\x80-\x9F][\x80-\xBF] # excluding surrogates
-						| \xF0[\x90-\xBF][\x80-\xBF]{2} # planes 1-3
-						| [\xF1-\xF3][\x80-\xBF]{3} # planes 4-15
-						| \xF4[\x80-\x8F][\x80-\xBF]{2} # plane 16
-						)*$%xs', $string);
-	}
-
-	/**
-	 * 判断email格式是否正确
-	 * @param $email
-	 */
-	public static function is_email($email) {
-		return strlen($email) > 6 && preg_match("/^[\w\-\.]+@[\w\-\.]+(\.\w+)+$/", $email);
-	}
-
-	/**
-	 * 自闭合html修复函数
-	 * 使用方法:
-	 * <code>
-	 * $input = '这是一段被截断的html文本<a href="#"';
-	 * echo Typecho_Common::fixHtml($input);
-	 * //output: 这是一段被截断的html文本
-	 * </code>
-	 *
-	 * @access public
-	 * @param string $string 需要修复处理的字符串
-	 * @return string
-	 */
-	public static function fix_html($string) {
-		//关闭自闭合标签
-		$startPos = strrpos($string, "<");
-		
-		if (false == $startPos) {
-			return $string;
-		}
-		
-		$trimString = substr($string, $startPos);
-		
-		if (false === strpos($trimString, ">")) {
-			$string = substr($string, 0, $startPos);
-		}
-		
-		//非自闭合html标签列表
-		preg_match_all("/<([_0-9a-zA-Z-\:]+)\s*([^>]*)>/is", $string, $startTags);
-		preg_match_all("/<\/([_0-9a-zA-Z-\:]+)>/is", $string, $closeTags);
-		
-		if (!empty($startTags[1]) && is_array($startTags[1])) {
-			krsort($startTags[1]);
-			$closeTagsIsArray = is_array($closeTags[1]);
-			foreach ($startTags[1] as $key => $tag) {
-				$attrLength = strlen($startTags[2][$key]);
-				if ($attrLength > 0 && "/" == trim($startTags[2][$key][$attrLength - 1])) {
-					continue;
-				}
-				if (!empty($closeTags[1]) && $closeTagsIsArray) {
-					if (false !== ($index = array_search($tag, $closeTags[1]))) {
-						unset($closeTags[1][$index]);
-						continue;
-					}
-				}
-				$string .= "</{$tag}>";
-			}
-		}
-		
-		return preg_replace("/\<br\s*\/\>\s*\<\/p\>/is", '</p>', $string);
-	}
-
-	/**
-	 * 处理XSS跨站攻击的过滤函数
-	 *
-	 * @author kallahar@kallahar.com
-	 * @link http://kallahar.com/smallprojects/php_xss_filter_function.php
-	 * @access public
-	 * @param string $val 需要处理的字符串
-	 * @return string
-	 */
-	public static function removeXSS($val) {
-		// remove all non-printable characters. CR(0a) and LF(0b) and TAB(9) are allowed
-		// this prevents some character re-spacing such as <java\0script>
-		// note that you have to handle splits with \n, \r, and \t later since they *are* allowed in some inputs
-		$val = preg_replace('/([\x00-\x08]|[\x0b-\x0c]|[\x0e-\x19])/', '', $val);
-		
-		// straight replacements, the user should never need these since they're normal characters
-		// this prevents like <IMG SRC=&#X40&#X61&#X76&#X61&#X73&#X63&#X72&#X69&#X70&#X74&#X3A&#X61&#X6C&#X65&#X72&#X74&#X28&#X27&#X58&#X53&#X53&#X27&#X29>
-		$search = 'abcdefghijklmnopqrstuvwxyz';
-		$search .= 'ABCDEFGHIJKLMNOPQRSTUVWXYZ';
-		$search .= '1234567890!@#$%^&*()';
-		$search .= '~`";:?+/={}[]-_|\'\\';
-		
-		for ($i = 0; $i < strlen($search); $i++) {
-			// ;? matches the ;, which is optional
-			// 0{0,7} matches any padded zeros, which are optional and go up to 8 chars
-			
-			// &#x0040 @ search for the hex values
-			$val = preg_replace('/(&#[xX]0{0,8}'.dechex(ord($search[$i])).';?)/i', $search[$i], $val); // with a ;
-			// &#00064 @ 0{0,7} matches '0' zero to seven times
-			$val = preg_replace('/(&#0{0,8}'.ord($search[$i]).';?)/', $search[$i], $val); // with a ;
-		}
-		
-		// now the only remaining whitespace attacks are \t, \n, and \r
-		$ra1 = Array('javascript', 'vbscript', 'expression', 'applet', 'meta', 'xml', 'blink', 'link', 'style', 'script', 'embed'
-			, 'object', 'iframe', 'frame', 'frameset', 'ilayer', 'layer', 'bgsound', 'title', 'base');
-		$ra2 = Array('onabort', 'onactivate', 'onafterprint', 'onafterupdate', 'onbeforeactivate', 'onbeforecopy', 'onbeforecut'
-			, 'onbeforedeactivate', 'onbeforeeditfocus', 'onbeforepaste', 'onbeforeprint', 'onbeforeunload', 'onbeforeupdate'
-			, 'onblur', 'onbounce', 'oncellchange', 'onchange', 'onclick', 'oncontextmenu', 'oncontrolselect', 'oncopy', 'oncut'
-			, 'ondataavailable', 'ondatasetchanged', 'ondatasetcomplete', 'ondblclick', 'ondeactivate', 'ondrag', 'ondragend'
-			, 'ondragenter', 'ondragleave', 'ondragover', 'ondragstart', 'ondrop', 'onerror', 'onerrorupdate', 'onfilterchange'
-			, 'onfinish', 'onfocus', 'onfocusin', 'onfocusout', 'onhelp', 'onkeydown', 'onkeypress', 'onkeyup', 'onlayoutcomplete'
-			, 'onload', 'onlosecapture', 'onmousedown', 'onmouseenter', 'onmouseleave', 'onmousemove', 'onmouseout', 'onmouseover'
-			, 'onmouseup', 'onmousewheel', 'onmove', 'onmoveend', 'onmovestart', 'onpaste', 'onpropertychange', 'onreadystatechange'
-			, 'onreset', 'onresize', 'onresizeend', 'onresizestart', 'onrowenter', 'onrowexit', 'onrowsdelete', 'onrowsinserted'
-			, 'onscroll', 'onselect', 'onselectionchange', 'onselectstart', 'onstart', 'onstop', 'onsubmit', 'onunload');
-		$ra = array_merge($ra1, $ra2);
-		
-		$found = true; // keep replacing as long as the previous round replaced something
-		while ($found == true) {
-			$val_before = $val;
-			for ($i = 0; $i < sizeof($ra); $i++) {
-				$pattern = '/';
-				for ($j = 0; $j < strlen($ra[$i]); $j++) {
-					if ($j > 0) {
-						$pattern .= '(';
-						$pattern .= '(&#[xX]0{0,8}([9ab]);)';
-						$pattern .= '|';
-						$pattern .= '|(&#0{0,8}([9|10|13]);)';
-						$pattern .= ')*';
-					}
-					$pattern .= $ra[$i][$j];
-				}
-				$pattern .= '/i';
-				$replacement = substr($ra[$i], 0, 2).'<x>'.substr($ra[$i], 2); // add in <> to nerf the tag
-				$val = preg_replace($pattern, $replacement, $val); // filter out the hex tags
-			
-				if ($val_before == $val) {
-					// no replacements were made, so exit the loop
-					$found = false;
-				}
-			}
-		}
-		
-		return $val;
-	}
-
-
 	public static function ascii_to_entities($str) {
 		$count	= 1;
 		$out	= '';
@@ -909,10 +779,8 @@ class TextUtils {
 		for ($i = 0, $s = strlen($str); $i < $s; $i++) {
 			$ordinal = ord($str[$i]);
 			if ($ordinal < 128) {
-				/*
-					If the $temp array has a value but we have moved on, then it seems only
-					fair that we output that entity and restart $temp before continuing. -Paul
-				*/
+				// If the $temp array has a value but we have moved on, then it seems only
+				// fair that we output that entity and restart $temp before continuing. -Paul
 				if (count($temp) == 1) {
 					$out  .= '&#'.array_shift($temp).';';
 					$count = 1;
@@ -963,48 +831,54 @@ class TextUtils {
 		return $str;
 	}
 
-	public static function highlight_phrase($str, $phrase, $tag_open = '<strong>', $tag_close = '</strong>') {
-		if ($str == '') {
-			return '';
-		}
-		if ($phrase != '') {
-			return preg_replace('/('.preg_quote($phrase, '/').')/i', $tag_open."\\1".$tag_close, $str);
+
+	/**
+	 * Indents a flat JSON string to make it more human-readable.
+	 *
+	 * @param string $json The original JSON string to process.
+	 * @return string Indented version of the original JSON string.
+	 */
+	public static function pretty_print_json($json) {
+		$result      = '';
+		$pos         = 0;
+		$strLen      = strlen($json);
+		$indentStr   = '  ';
+		$newLine     = "\n";
+		$prevChar    = '';
+		$outOfQuotes = true;
+		
+		for ($i=0; $i<=$strLen; $i++) {
+			// Grab the next character in the string.
+			$char = substr($json, $i, 1);
+			// Are we inside a quoted string?
+			if ($char == '"' && $prevChar != '\\') {
+				$outOfQuotes = !$outOfQuotes;
+				// If this character is the end of an element,
+				// output a new line and indent the next line.
+			} else if (($char == '}' || $char == ']') && $outOfQuotes) {
+				$result .= $newLine;
+				$pos --;
+				for ($j=0; $j<$pos; $j++) {
+					$result .= $indentStr;
+				}
+			}
+			// Add the character to the result string.
+			$result .= $char;
+			// If the last character was the beginning of an element,
+			// output a new line and indent the next line.
+			if (($char == ',' || $char == '{' || $char == '[') && $outOfQuotes) {
+				$result .= $newLine;
+				if ($char == '{' || $char == '[') {
+					$pos ++;
+				}
+				for ($j = 0; $j < $pos; $j++) {
+					$result .= $indentStr;
+				}
+			}
+			$prevChar = $char;
 		}
 		
-		return $str;
+		return $result;
 	}
-
-	public static function highlight_code($str) {
-		// The highlight string function encodes and highlights
-		// brackets so we need them to start raw
-		$str = str_replace(array('&lt;', '&gt;'), array('<', '>'), $str);
-		// Replace any existing PHP tags to temporary markers so they don't accidentally
-		// break the string out of PHP, and thus, thwart the highlighting.
-		$str = str_replace(array('<?', '?>', '<%', '%>', '\\', '</script>'),
-							array('phptagopen', 'phptagclose', 'asptagopen', 'asptagclose', 'backslashtmp', 'scriptclose'), $str);
-		// The highlight_string function requires that the text be surrounded
-		// by PHP tags, which we will remove later
-		$str = '<?php '.$str.' ?>'; // <?
-		// All the magic happens here, baby!
-		$str = highlight_string($str, TRUE);
-		// Prior to PHP 5, the highligh function used icky <font> tags
-		// so we'll replace them with <span> tags.
-		if (abs(PHP_VERSION) < 5) {
-			$str = str_replace(array('<font ', '</font>'), array('<span ', '</span>'), $str);
-			$str = preg_replace('#color="(.*?)"#', 'style="color: \\1"', $str);
-		}
-		// Remove our artificially added PHP, and the syntax highlighting that came with it
-		$str = preg_replace('/<span style="color: #([A-Z0-9]+)">&lt;\?php(&nbsp;| )/i', '<span style="color: #$1">', $str);
-		$str = preg_replace('/(<span style="color: #[A-Z0-9]+">.*?)\?&gt;<\/span>\n<\/span>\n<\/code>/is', "$1</span>\n</span>\n</code>", $str);
-		$str = preg_replace('/<span style="color: #[A-Z0-9]+"\><\/span>/i', '', $str);
-		
-		// Replace our markers back to PHP tags.
-		$str = str_replace(array('phptagopen', 'phptagclose', 'asptagopen', 'asptagclose', 'backslashtmp', 'scriptclose'),
-							array('&lt;?', '?&gt;', '&lt;%', '%&gt;', '\\', '&lt;/script&gt;'), $str);
-		
-		return $str;
-	}
-
-
 
 }
