@@ -1,0 +1,21 @@
+{
+	"name": "autorealm/faddle",
+	"description": "Faddle is a PHP framework for develop website or web appliction.",
+	"keywords": ["php", "framework", "library", "component"],
+	"homepage": "http://faddle.cc/",
+	"license": ["Apache-2.0", "MIT"],
+	"authors": [
+		{
+			"name": "KYO",
+			"email": "kyo@sunteorum.com",
+			"homepage": "http://www.advos.cn/",
+			"role": "Developer"
+		}
+	],
+	"require": {
+		"php": "^5.5.16 || ^7.0"
+	},
+	"autoload": {
+		"files": ["src/Faddle/autoload.php"]
+	}
+}

@@ -1,0 +1,5 @@
+.build
+.settings/org.eclipse.php.core.prefs
+.project
+test/*
+tmp
