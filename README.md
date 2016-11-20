@@ -146,7 +146,8 @@ set_exception_handler(function($e) {
 APP 是最先应该建立的类，该类仅作为容器，可以依赖并注入其他任何对象或者方法。
 > APP 的相关代码应该写在单独的文件，如：``app.php``。
 
-1. **新建 APP 对象**
++ **新建 APP 对象**
+
 > 可选参数：1.应用目录位置，2.配置文件路径
 
 ```php
@@ -156,7 +157,7 @@ $app = new Faddle\App(
 );
 ```
 
-2. **注入对象或者变量**
++ **注入对象或者变量**
 
 ```php
 $app->g('is_mobile', \Faddle\Common\Util\HttpUtils::is_mobile());
@@ -176,7 +177,8 @@ $app->logger = call_user_func(function() {
 
 ```
 
-3. **注入方法函数**
++ **注入方法函数**
+
   以下示例为注入视图模板方法并注册生成开始模板渲染事件。
 ```php
 $app->register('init_view', function() use ($app) {
@@ -196,7 +198,9 @@ $app->register('render', function($tpl, $data=array()) use ($app) {
 ```
 
 4. **共享运行方法**
+
   表示在 ``$app->run()``时需要执行的方法。添加方法为 ``$app->share(Cloure)``，调用该方法即进入运行栈，栈顺序即表示运行时的加载顺序。
+  
 > 该方法推荐引入其他业务代码文件，因为是在闭包状态下运行的，里面定义的变量不会影响到全局环境。
 
   以下是示例。
@@ -214,8 +218,10 @@ $app->share(function($app) {
 });
 ```
 
-5. **事件处理**
++ **事件处理**
+
   APP 默认有11个事件，分别为：``start``, ``before``, ``obtain``, ``present``, ``completed``, 
+  
 ``error``, ``notfound``, ``badrequest``, ``unavailable``, ``next``, ``end``
 
   事件仅在 ``$app->run()`` 后产生。其中正常会触发的事件有**start**_(开始)_ **before**_(进入路由)_ **obtain**_(已匹配)_ **end**_(结束)_ 
@@ -332,4 +338,4 @@ All Github Open-source Contributor!
 [1]: http://www.php-fig.org/psr/
 [2]: https://github.com/autorealm/faddle/wiki
 [3]: http://advos.cn
-[4]: https://raw.github.com/autorealm/faddle/master/LICENSE.md
+[4]: https://github.com/autorealm/faddle/raw/master/LICENSE
