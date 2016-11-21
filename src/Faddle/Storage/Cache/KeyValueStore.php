@@ -1,7 +1,7 @@
 <?php namespace Faddle\Storage\Cache;
 
 /**
- * ¼üÖµ´æ´¢ÒýÇæ½Ó¿Ú
+ * é”®å€¼å­˜å‚¨å¼•æ“ŽæŽ¥å£
  */
 interface KeyValueStore {
 

@@ -5,7 +5,7 @@ use Faddle\Helper\UriHelper as Uri;
 use Exception;
 
 /**
- * HTTP ÇëÇóÖúÊÖÀà
+ * HTTP è¯·æ±‚åŠ©æ‰‹ç±»
  * @since 2015-11
  */
 class RequestHelper {

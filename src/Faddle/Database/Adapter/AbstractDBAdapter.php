@@ -377,7 +377,7 @@ abstract class AbstractDBAdapter {
 	}
 
 	/**
-	 * Ô¤´¦Àí×Ö·û´®. ÓÃÆ¥ÅäµÄÏîÌæ»»ÈÎºÎ '?'
+	 * é¢„å¤„ç†å­—ç¬¦ä¸². ç”¨åŒ¹é…çš„é¡¹æ›¿æ¢ä»»ä½• '?'
 	 *
 	 * @param string $sql
 	 * @param array $arguments Array of arguments

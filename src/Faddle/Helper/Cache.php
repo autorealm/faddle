@@ -20,16 +20,27 @@ class Cache {
 			'cachedir'   => '',
 		);
 
-	public function connect($type='', $options=array()) {
-		if(empty($type)) $type = 'File';
-		$class = strpos($type,'Cache')? $type : ucwords(strtolower($type)).'Cache';
-		//chdir('cache');
-		if(class_exists($class))
-			$cache = new $class($options);
+	protected function connect($type='', $options=array()) {
+		if(empty($type)) $type = 'file';
+		$class = strpos($type,'Cache') ? $type : ucwords(strtolower($type)).'Cache';
+		if(class_exists(__NAMESPACE__ . '/' . $class))
+			$this->handler = new $class($options);
+		elseif($type == 'apc' && extension_loaded('apc') && ini_get('apc.enabled'))
+			$this->handler = array('get' => 'apc_fetch', 'set' => 'apc_store', 'has' => 'apc_exists', 
+				'remove' => 'apc_delete', 'delete' => 'apc_delete', 'clear' => 'apc_clear_cache');
+		elseif(extension_loaded('xcache') && function_exists("xcache_get"))
+			$this->handler = array('get' => 'xcache_get', 'set' => 'xcache_set', 'has' => 'xcache_isset', 
+				'remove' => 'xcache_unset', 'delete' => 'xcache_unset', 'clear' => function() {
+						$cnt = xcache_count(XC_TYPE_VAR);
+						for ($i=0; $i < $cnt; $i++) {
+							xcache_clear_cache(XC_TYPE_VAR, $i);
+						}
+						return true;
+					});
 		else
-			throw new Exception(':'.$type);
+			throw new Exception('Cache Driver not exists:'.$type);
 		
-		return $cache;
+		return $this->handler;
 	}
 
 	/**
@@ -38,9 +49,9 @@ class Cache {
 	 */
 	public static function getInstance($type='', $options=array()) {
 		static $_instance = array();
-		$guid = $type.to_guid_string($options);
+		$guid = $type.md5(serialize($options));
 		if (!isset($_instance[$guid])) {
-			$obj = new Cache();
+			$obj = new self();
 			$_instance[$guid] =	$obj->connect($type, $options);
 		}
 		
@@ -77,6 +88,11 @@ class Cache {
 
 	public function __call($method, $args) {
 		//调用缓存类型自带的方法
+		if (is_array($this->handler)) {
+			if (in_array($method, $this->handler))
+				return call_user_func_array($this->handler[$method], $args);
+			return false;
+		}
 		if(method_exists($this->handler, $method)) {
 			return call_user_func_array(array($this->handler, $method), $args);
 		} else {

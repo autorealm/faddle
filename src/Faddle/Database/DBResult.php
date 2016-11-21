@@ -3,7 +3,7 @@
 use Faddle\Database\Adapter\AbstractDBAdapter;
 
 /**
- * ²éÑ¯½á¹ûÀà
+ * æŸ¥è¯¢ç»“æœç±»
  *
  * @version 1.0
  */

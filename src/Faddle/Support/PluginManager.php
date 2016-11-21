@@ -3,7 +3,7 @@
 //declare(strict_types=1);
 
 /**
- * 插件管理器类
+ * 鎻掍欢绠＄悊鍣ㄧ被
  */
 class PluginManager {
 

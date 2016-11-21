@@ -1,4 +1,4 @@
-﻿Faddle - a liberalization PHP Framework
+Faddle - a liberalization PHP Framework
 =================================
 Faddle Framework is just a PHP MVC system to give developers the creative experience of developing a web application. 
 It's designed to be lightweight and modular, allowing developers to build better and easy to maintain&migrate code with PHP.
