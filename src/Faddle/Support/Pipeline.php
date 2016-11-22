@@ -16,7 +16,7 @@ class Pipeline {
 	 */
 	public function __construct(array $pipes=[], PipeProcessorInterface $processor=null) {
 		foreach ($pipes as $pipe) {
-			if (false === is_callable($pipe) throw new InvalidArgumentException('All pipe should be callable.');
+			if (false === is_callable($pipe)) throw new InvalidArgumentException('All pipe should be callable.');
 		}
 		$this->pipes = $pipes;
 		$this->processor = $processor ?: new InterruptibleProcessor();
