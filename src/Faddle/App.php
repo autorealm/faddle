@@ -180,6 +180,15 @@ class App extends Faddle {
 		return $this->injector->getData();
 	}
 
+	public function raw($key=null, $value=null) {
+		if ($value !== null) {
+			return $this->injector[$key] = $value;
+		} else if ($key === null) {
+			return $this->injector;
+		}
+		return isset($this->injector[$key]) ? $this->injector[$key] : null;
+	}
+
 	public function injector($data, &$odd) {
 		$this->injector[$data] = $odd;
 		return $this->injector;
@@ -199,6 +208,22 @@ class App extends Faddle {
 	
 	public function __unset($name) {
 		unset($this->injector[$name]);
+	}
+
+	public function offsetGet($offset) {
+		return $this->__get($offset);
+	}
+
+	public function offsetSet($offset, $value) {
+		return $this->__set($offset, $value);
+	}
+
+	public function offsetExists($offset) {
+		return $this->__isset($offset);
+	}
+
+	public function offsetUnset($offset) {
+		return $this->__unset($offset);
 	}
 
 	/**

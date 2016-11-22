@@ -100,10 +100,10 @@ class ViewParser {
 		$_patten[] = '/[ \t]{0,}' .$_prefix. 'else' .$_suffix. '/i';
 		$_match[] = "<?php } else {?>";
 		
-		$_patten[] = '/[ \t]{0,}' .$_prefix. 'else[\s]{0,}if[\s]{0,}(.*)' .$_suffix. '/isU';
+		$_patten[] = '/[ \t]{0,}' .$_prefix. 'else[\s]{0,}if[\s]{0,}(.+[^\:])' .$_suffix. '/isU';
 		$_match[] = "<?php } elseif $1 {?>";
 		
-		$_patten[] = '/[ \t]{0,}' .$_prefix. '(?:end|\/)[\s]{0,}[A-Za-z]{0,}' .$_suffix. '/i';
+		$_patten[] = '/[ \t]{0,}' .$_prefix. '(?:end|\/)[\s]{0,}[A-Za-z]{0,7}' .$_suffix. '/i';
 		$_match[] = "<?php }?>";
 		
 		$_patten[] = '/[ \t]{0,}' .$_prefix. 'for\s+(\$\w+)\s+in\s+(.+)' .$_suffix. '/isU';
@@ -115,8 +115,8 @@ class ViewParser {
 		$_patten[] = '/[ \t]{0,}' .$_prefix. 'foreach\s+\$(\w[^\s]+)(?:\s+as|)[\s]{0,}\([\$]{0,1}(\w+),[\s]{0,}[\$]{0,1}(\w+)\)' .$_suffix. '/isU';
 		$_match[] = "<?php foreach (\$$1 as \$$2 => \$$3) { ?>";
 		
-		$_patten[] = '/[ \t]{0,}' .$_prefix. '(?:(if.*)|(foreach.*)|(for.*)|(switch.*)|(while.*)|(do.*))' .$_suffix. '/isU';
-		$_match[] = "<?php $1 { ?>";
+		$_patten[] = '/[ \t]{0,}' .$_prefix. '(?:(if)|(foreach)|(for)|(switch)|(while)|(do))(.+[^\:])' .$_suffix. '/isU';
+		$_match[] = "<?php $1$2 { ?>";
 		
 		//【注意】: 使用 ([\s\S]+) 比  (.*) 更耗时。
 		$_patten[] = '/'.$_prefix. '(\$[A-Za-z_][^\s\|]+?)[\s]{1,}or[\s]{1,}(.+?)' .$_suffix. '/i';
@@ -136,7 +136,7 @@ class ViewParser {
 		
 		
 		$this->_patten_all = '/'.$_prefix. '(.+?)' .$_suffix. '/';
-		$this->_match_all = "<?php $1;?>";
+		$this->_match_all = "<?php $1 ?>";
 		
 		$this->_patten_extends = '/' .$_prefix_2. 'extends\s+file=[\"\']([\w\/\.\-\_\d]+)[\"\'](?:\s+as=[\"\'](.*)[\"\']|)' .$_suffix_2. '/iU';
 		$this->_match_extends = '/<!--[\s]{0,}' .$_prefix_2. '#([\w\/\.\-\_\d]+)' .$_suffix_2. '[\s]{0,}-->/';
