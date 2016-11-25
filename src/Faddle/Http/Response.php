@@ -419,7 +419,8 @@ class Response implements ResponseInterface {
 			}
 		} else {
 			@header('Content-Type: text/plain');
-			print_r($result);
+			if (!empty($data)) print_r($result);
+			else echo $message;
 		}
 		flush();
 		return true;

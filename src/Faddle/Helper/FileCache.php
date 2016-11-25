@@ -149,6 +149,17 @@ class FileCache extends Cache {
 		return filemtime($filename);
 	}
 
+	public function has($key) {
+		$filename = $this->cached_file_name($key);
+		if (!is_file($filename)) return false;
+		return true;
+	}
+
+	public function remove($key) {
+		if ($this->has($key)) return unlink($this->cached_file_name($key));
+		return false;
+	}
+
 	public function delete($key) {
 		return unlink($this->cached_file_name($key));
 	}

@@ -78,7 +78,6 @@ if (! function_exists('with')) {
 }
 
 if (!function_exists('mstimer')) {
-	$__t0__ = microtime();
 	
 	/**
 	 * 毫秒计时函数
@@ -87,13 +86,13 @@ if (!function_exists('mstimer')) {
 	 */
 	function mstimer($mode=1) {
 		static $t;
-		if (! $mode) {$t = microtime(); return 0;}
-		elseif ($mode == 1) $t0 = $__t0__;
-		else $t0 = $t ?: $__t0__;
-		$t1 = microtime();
-		list($m0, $s0) = explode(' ', $t0);
-		list($m1, $s1) = explode(' ', $t1);
-		return sprintf("%.3f ms",($s1+$m1-$s0-$m0)*1000);
+		if (! $mode) {$t = microtime(true); return 0;}
+		elseif ($mode == 1) $t0 = floatval(FADDLE_AT);
+		else $t0 = $t ?: floatval(FADDLE_AT);
+		$t1 = microtime(true);
+		//list($m0, $s0) = explode(' ', $t0);
+		//list($m1, $s1) = explode(' ', $t1);
+		return sprintf("%.3f ms",($t1 - $t0)*1000);
 	}
 }
 

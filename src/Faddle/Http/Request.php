@@ -78,13 +78,6 @@ class Request implements RequestInterface {
 	}
 
 	/**
-	 * 获取请求参数
-	 */
-	public static function request($key, $default=null) {
-		return static::lookup($_REQUEST, $key, $default);
-	}
-
-	/**
 	 * 返回（设置）额外请求数据
 	 * @param string $data 需要设置的额外数据
 	 * @param string $overwrite 是否覆盖
@@ -97,15 +90,6 @@ class Request implements RequestInterface {
 				self::$data = array_merge(self::$data, (array) $data);
 		}
 		return self::$data;
-	}
-
-	/**
-	 * 返回一个 GET 请求数据
-	 * @param string $key
-	 * @param string $default
-	 */
-	public static function get($key=null, $default=null) {
-		return static::lookup($_GET, $key, $default);
 	}
 
 	/**
@@ -147,11 +131,12 @@ class Request implements RequestInterface {
 				'uri' => $uri,
 				'base' => str_replace(array('\\',' '), array('/','%20'), dirname(getenv('SCRIPT_NAME'))),
 				'method' => getenv('HTTP_X_HTTP_METHOD_OVERRIDE') ?: (getenv('REQUEST_METHOD') ?: 'GET'),
-				'referrer' => getenv('HTTP_REFERER') ?: '',
+				'referer' => getenv('HTTP_REFERER') ?: '',
 				'ip' => getenv('REMOTE_ADDR') ?: $proxy_ip,
 				'ajax' => getenv('HTTP_X_REQUESTED_WITH') == 'XMLHttpRequest',
 				'scheme' => getenv('SERVER_PROTOCOL') ?: 'HTTP/1.1',
 				'accept' => getenv('HTTP_ACCEPT') ?: '',
+				'language' => getenv('HTTP_ACCEPT_LANGUAGE') ?: '',
 				'user_agent' => getenv('HTTP_USER_AGENT') ?: '',
 				'body' => file_get_contents('php://input') ?: '',
 				'type' => getenv('CONTENT_TYPE') ?: '',
@@ -163,6 +148,71 @@ class Request implements RequestInterface {
 	
 	public static function path() {
 		return parse_url($_SERVER['REQUEST_URI'], PHP_URL_PATH);
+	}
+	
+	/**
+	 * 返回 Accept 请求内容格式数据，或判断是否为某内容格式
+	 * @param string $type 需判断的内容格式
+	 */
+	public static function accept($type=null) {
+		$accept = $_SERVER['HTTP_ACCEPT'] ?: '';
+		if (is_null($type)) return $accept;
+		$accepts = explode(';', $accept);
+		$accept = explode(',', $accepts[0]);
+		array_map('trim', $accept);
+		array_map('strtolower', $accept);
+		if (in_array(strtolower($type), $accept)) {
+			return true;
+		} else {
+			return false;
+		}
+	}
+	
+	/**
+	 * 返回请求内容语言，或判断是否包含某语言
+	 * @param string $lang 需判断的语言
+	 * @return null 无语言请求，0-1 用户语言喜好
+	 */
+	public static function language($lang=null) {
+		$accept = $_SERVER['HTTP_ACCEPT_LANGUAGE'] ?: '';
+		if (empty($accept)) return null;
+		$_accepts = explode(';', $accept);
+		$accepts = array();
+		foreach ($_accepts as $accept) {
+			$accept = explode(',', $accept);
+			if (preg_match('/^q=[0-9\.]+$/i', $accept[0])) {
+				$q = strval(substr($accept[0], 2));
+				unset($accept[0]);
+			} else {
+				$q = '1.0';
+			}
+			$accepts[$q] = $accept;
+		}
+		if (is_null($lang)) return $accepts;
+		foreach ($accepts as $q => $accept) {
+			array_map('trim', $accept);
+			array_map('strtolower', $accept);
+			if (in_array(strtolower($lang), $accept)) {
+				return float($q);
+			}
+		}
+		return 0;
+	}
+
+	/**
+	 * 获取请求参数
+	 */
+	public static function request($key, $default=null) {
+		return static::lookup($_REQUEST, $key, $default);
+	}
+
+	/**
+	 * 返回一个 GET 请求数据
+	 * @param string $key
+	 * @param string $default
+	 */
+	public static function get($key=null, $default=null) {
+		return static::lookup($_GET, $key, $default);
 	}
 
 	/**

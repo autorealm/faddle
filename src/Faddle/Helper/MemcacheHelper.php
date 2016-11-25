@@ -145,14 +145,6 @@ class MemcacheHelper {
 		return $this->exists($key);
 	}
 
-	public function time($key = NULL) {
-		if ($this->exists($key)) {
-			return time();
-		} else {
-			return 0;
-		}
-	}
-
 	/*
 	 * +-------------------------------------+
 	 * Name: set
