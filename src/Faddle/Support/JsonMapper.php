@@ -1,5 +1,9 @@
 <?php namespace Faddle\Support;
 
+use InvalidArgumentException;
+use Exception;
+use ReflectionClass;
+
 /**
  * Part of JsonMapper
  *
@@ -21,8 +25,8 @@
  * @license  OSL-3.0 http://opensource.org/licenses/osl-3.0
  * @link     http://cweiske.de/
  */
-class JsonMapper {
-
+class JsonMapper
+{
     /**
      * PSR-3 compatible logger object
      *
@@ -66,6 +70,21 @@ class JsonMapper {
      * @var boolean
      */
     public $bStrictObjectTypeChecking = false;
+
+    /**
+     * Throw an exception, if null value is found
+     * but the type of attribute does not allow nulls.
+     *
+     * @var bool
+     */
+    public $bStrictNullTypes = true;
+
+    /**
+     * Allow mapping of private and proteted properties.
+     *
+     * @var boolean
+     */
+    public $bIgnoreVisibility = false;
 
     /**
      * Override class names that JsonMapper uses to create objects.
@@ -126,6 +145,7 @@ class JsonMapper {
         $strNs = $rc->getNamespaceName();
         $providedProperties = array();
         foreach ($json as $key => $jvalue) {
+            $key = $this->getSafeName($key);
             $providedProperties[$key] = true;
 
             // Store the property inspection results so we don't have to do it
@@ -174,7 +194,7 @@ class JsonMapper {
                 continue;
             }
 
-            if ($this->isNullable($type)) {
+            if ($this->isNullable($type) || !$this->bStrictNullTypes) {
                 if ($jvalue === null) {
                     $this->setProperty($object, $accessor, null);
                     continue;
@@ -182,7 +202,8 @@ class JsonMapper {
                 $type = $this->removeNullable($type);
             } else if ($jvalue === null) {
                 throw new Exception(
-                    'JSON property "' . $key . '" must not be NULL'
+                    'JSON property "' . $key . '" in class "'
+                    . $strClassName . '" must not be NULL'
                 );
             }
 
@@ -293,7 +314,7 @@ class JsonMapper {
      * @param array  $providedProperties array with json properties
      * @param object $rc                 Reflection class to check
      *
-     * @throws JsonMapper_Exception
+     * @throws Exception
      *
      * @return void
      */
@@ -332,6 +353,7 @@ class JsonMapper {
     public function mapArray($json, $array, $class = null)
     {
         foreach ($json as $key => $jvalue) {
+            $key = $this->getSafeName($key);
             if ($class === null) {
                 $array[$key] = $jvalue;
             } else if ($this->isFlatType(gettype($jvalue))) {
@@ -373,12 +395,11 @@ class JsonMapper {
     protected function inspectProperty(ReflectionClass $rc, $name)
     {
         //try setter method first
-        $setter = 'set' . str_replace(
-            ' ', '', ucwords(str_replace('_', ' ', $name))
-        );
+        $setter = 'set' . $this->getCamelCaseName($name);
+
         if ($rc->hasMethod($setter)) {
             $rmeth = $rc->getMethod($setter);
-            if ($rmeth->isPublic()) {
+            if ($rmeth->isPublic() || $this->bIgnoreVisibility) {
                 $rparams = $rmeth->getParameters();
                 if (count($rparams) > 0) {
                     $pclass = $rparams[0]->getClass();
@@ -413,7 +434,7 @@ class JsonMapper {
         } else {
             //case-insensitive property matching
             $rprop = null;
-            foreach ($rc->getProperties(ReflectionProperty::IS_PUBLIC) as $p) {
+            foreach ($rc->getProperties() as $p) {
                 if ((strcasecmp($p->name, $name) === 0)) {
                     $rprop = $p;
                     break;
@@ -421,7 +442,7 @@ class JsonMapper {
             }
         }
         if ($rprop !== null) {
-            if ($rprop->isPublic()) {
+            if ($rprop->isPublic() || $this->bIgnoreVisibility) {
                 $docblock    = $rprop->getDocComment();
                 $annotations = $this->parseAnnotations($docblock);
 
@@ -444,6 +465,38 @@ class JsonMapper {
     }
 
     /**
+     * Removes - and _ and makes the next letter uppercase
+     *
+     * @param string $name Property name
+     *
+     * @return string CamelCasedVariableName
+     */
+    protected function getCamelCaseName($name)
+    {
+        return str_replace(
+            ' ', '', ucwords(str_replace(array('_', '-'), ' ', $name))
+        );
+    }
+
+    /**
+     * Since hyphens cannot be used in variables we have to uppercase them.
+     *
+     * Technically you may use them, but they are awkward to access.
+     *
+     * @param string $name Property name
+     *
+     * @return string Name without hyphen
+     */
+    protected function getSafeName($name)
+    {
+        if (strpos($name, '-') !== false) {
+            $name = $this->getCamelCaseName($name);
+        }
+
+        return $name;
+    }
+
+    /**
      * Set a property on a given object to a given value.
      *
      * Checks if the setter or the property are public are made before
@@ -458,10 +511,14 @@ class JsonMapper {
     protected function setProperty(
         $object, $accessor, $value
     ) {
+        if (!$accessor->isPublic() && $this->bIgnoreVisibility) {
+            $accessor->setAccessible(true);
+        }
         if ($accessor instanceof ReflectionProperty) {
-            $object->{$accessor->getName()} = $value;
+            $accessor->setValue($object, $value);
         } else {
-            $object->{$accessor->getName()}($value);
+            //setter method
+            $accessor->invoke($object, $value);
         }
     }
 
@@ -496,13 +553,16 @@ class JsonMapper {
      * @param string $type type name from gettype()
      *
      * @return boolean True if it is a simple PHP type
+     *
+     * @see isFlatType()
      */
     protected function isSimpleType($type)
     {
         return $type == 'string'
             || $type == 'boolean' || $type == 'bool'
             || $type == 'integer' || $type == 'int'
-            || $type == 'float' || $type == 'array' || $type == 'object';
+            || $type == 'double' || $type == 'float'
+            || $type == 'array' || $type == 'object';
     }
 
     /**
@@ -529,6 +589,8 @@ class JsonMapper {
      * @param string $type type name from gettype()
      *
      * @return boolean True if it is a non-nested PHP type
+     *
+     * @see isSimpleType()
      */
     protected function isFlatType($type)
     {
@@ -536,7 +598,7 @@ class JsonMapper {
             || $type == 'string'
             || $type == 'boolean' || $type == 'bool'
             || $type == 'integer' || $type == 'int'
-            || $type == 'double';
+            || $type == 'double' || $type == 'float';
     }
 
     /**
