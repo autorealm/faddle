@@ -1,4 +1,4 @@
-<?php namespace Faddle\Common;
+<?php namespace Faddle\Helper;
 
 use PDO;
 use PDOException;
