@@ -108,7 +108,7 @@ class ImageUtils {
 	 * @param  integer   $resize_width     Desired image width
 	 * @param  integer   $resize_height    Desired image height
 	 */
-	public static function generate_thumbnail($src_file, $dst_file, $resize_width=250, $resize_height=100) {
+	public static function generate_thumbnail($src_file, $dst_file, $resize_width=250, $resize_height=100, $quality=100) {
 		$metadata = getimagesize($src_file);
 		$src_width = $metadata[0];
 		$src_height = $metadata[1];
@@ -158,7 +158,7 @@ class ImageUtils {
 				return;
 		}
 		imagecopyresampled($dst_image, $src_image, $dst_x, $dst_y, 0, 0, $dst_width, $dst_height, $src_width, $src_height);
-		imagejpeg($dst_image, $dst_file);
+		imagejpeg($dst_image, $dst_file, $quality);
 		imagedestroy($dst_image);
 	}
 

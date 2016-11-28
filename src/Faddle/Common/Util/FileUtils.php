@@ -431,4 +431,47 @@ class FileUtils {
 		return true;
 	}
 
+	public static function file_info($path) {
+		if (!file_exists($path)) {
+			return false;
+		}
+		clearstatcache(false, $path);
+		
+		$stat = stat($path);
+		$finfo = new \finfo(FILEINFO_MIME);
+		$mimetype = $finfo->file($this->getPathname());
+		$mimetypeParts = preg_split('/\s*[;,]\s*/', $mimetype);
+		$mimetype = strtolower($mimetypeParts[0]);
+		unset($finfo);
+		if (preg_match('/^image\/*$/i', $mimetype)) {
+			list($width, $height) = getimagesize($path);
+		}
+		$info = array(
+			'path' => $path,
+			'dir' => dirname($path),
+			'name' =>  pathinfo($path, PATHINFO_FILENAME),
+			'extension' => strtolower(pathinfo($path, PATHINFO_EXTENSION)),
+			'mimetype' => $mimetype,
+			'md5' => md5_file($path)
+			'is_dir' => is_dir($path),
+			'is_file' => is_file($path),
+			'is_readable' => is_readable($path),
+			'is_writable' => is_writable($path),
+			'is_uploaded_file' => is_uploaded_file($path),
+			'mode' => fileperms($path),
+			'owner' => fileowner($path),
+			'group' => filegroup($path),
+			'size' => filesize($path),
+			'ctime' => filectime($path),
+			'mtime' => filemtime($path),
+			'atime' => fileatime($path),
+			'dev' => $stat['dev'],
+			'ino' => $stat['ino'],
+			'uid' => $stat['uid'],
+			'gid' => $stat['gid'],
+		);
+		
+		return $info;
+	}
+
 }

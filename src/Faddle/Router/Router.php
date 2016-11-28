@@ -136,7 +136,7 @@ class Router {
 		} else {
 			$method = ['POST', 'GET'];
 		}
-		if (! is_array($callback)) {
+		if (is_callable($callback) or ! is_array($callback)) {
 			$callback = array(
 				'as' => null,
 				'controller' => $callback,
