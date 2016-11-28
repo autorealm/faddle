@@ -130,7 +130,7 @@ class ServesRouter {
 							$result = require $filepath . '/' . $c;
 							if (is_string($result)) return $result;
 						});
-					} else if (is_string($c) { //直接作为回调函数
+					} else if (is_string($c)) { //直接作为回调函数
 						$_router->route($p, $c);
 					} else trigger_error(sprintf('Route file not find: %s', $filepath . '/' . $c), E_USER_WARNING);
 				}
