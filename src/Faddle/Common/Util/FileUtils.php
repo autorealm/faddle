@@ -452,7 +452,7 @@ class FileUtils {
 			'name' =>  pathinfo($path, PATHINFO_FILENAME),
 			'extension' => strtolower(pathinfo($path, PATHINFO_EXTENSION)),
 			'mimetype' => $mimetype,
-			'md5' => md5_file($path)
+			'md5' => md5_file($path),
 			'is_dir' => is_dir($path),
 			'is_file' => is_file($path),
 			'is_readable' => is_readable($path),
