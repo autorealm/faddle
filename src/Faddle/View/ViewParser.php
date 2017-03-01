@@ -118,6 +118,12 @@ class ViewParser {
 		$_patten[] = '/[ \t]{0,}' .$_prefix. '(?:(if)|(foreach)|(for)|(switch)|(while)|(do))(.+[^\:])' .$_suffix. '/isU';
 		$_match[] = "<?php $1$2 { ?>";
 		
+		$_patten[] = '/[ \t]{0,}' .$_prefix. '(break|continue)' .$_suffix. '/i';
+		$_match[] = "<?php $1;?>";
+		
+		$_patten[] = '/[ \t]{0,}' .$_prefix. 'until[\s]{0,}\((.*?)\)' .$_suffix. '/iU';
+		$_match[] = "<?php } while($1);?>";
+		
 		//【注意】: 使用 ([\s\S]+) 比  (.*) 更耗时。
 		$_patten[] = '/'.$_prefix. '(\$[A-Za-z_][^\s\|]+?)[\s]{1,}or[\s]{1,}(.+?)' .$_suffix. '/i';
 		$_match[] = "<?php echo ($1) ?: $2;?>";
@@ -569,7 +575,7 @@ class ViewParser {
 	protected static function parse_filter_matchs($matchs) {
 		list($_, $args, $name, $params, $mods) = $matchs;
 		$name = trim($name);
-		if (! empty(ViewEngine::$modifiers) and ViewEngine::modifier_exists($name)) {
+		if (ViewEngine::modifier_exists($name)) {
 			//eval("\$args = \"$args\";");
 			$params = $args . (empty($params) ? '' : ',' . $params);
 			$ov = 'call_modifier(\''.$name.'\','. $params .')';

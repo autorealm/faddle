@@ -107,6 +107,15 @@ abstract class Faddle {
 	}
 
 	/**
+	 * 移除实例方法
+	 */
+	public function detach($instance) {
+		if ($key = array_search($instance, $this->instances) !== false)
+			unset($this->instances[$key]);
+		return $this;
+	}
+
+	/**
 	 * 扩展服务方法
 	 *
 	 * @param string $name

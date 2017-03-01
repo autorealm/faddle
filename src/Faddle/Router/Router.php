@@ -10,17 +10,25 @@ use Faddle\Http\Response as Response;
  */
 class Router {
 	public $name = null; //路由器名称
-	public $routes = array(); //路由数组
-	public $blueprints = array(); //蓝图
+	protected $routes = array(); //路由数组
+	protected $blueprints = array(); //蓝图
+	protected $packs = array(); //路由模组
 	public $domain = false; //路由器域名
 	public $base_path = ''; //路由器基本路径
+	public $path_suffix = ''; //路由器路径后缀
+	public $ignore_case = false; //是否忽略路径大小写
 	public $default_route = null; //默认路由
+	public $on_entered = null; //路由开始前的回调函数
+	public $on_completed = null; //路由完成时的回调函数
 	protected $middlewares = array(); //路由器中间件数组
 	protected $params = array(); //匹配的参数
 	protected $callback = null; //匹配的回调
 	protected $uses = ''; //匹配的命名空间
 	protected $matched_name; //匹配的路由名称
+	protected static $group_path; //匹配的蓝图根路径
 	private static $app;
+	private static $root_router; //根路由器
+	public static $matched_route; //匹配的路由信息
 	private static $query_path = '';
 	
 	protected static $match_types = array(
@@ -34,16 +42,26 @@ class Router {
 
 	/**
 	 * 路由器构造函数
+	 * @param mixed $router_config 路由器基本路径或者配置数组
 	 * @return Router
 	 */
-	public function __construct($base_path='', $domain=null, $default_route=null) {
-		if ($base_path) $this->base_path = trim($base_path);
+	public function __construct($router_config='', $domain=null, $default_route=null) {
+		if ($router_config) {
+			if (is_array($router_config)) {
+				if (array_key_exists('base_path', $router_config)) $this->base_path = trim($router_config['base_path']);
+				if (array_key_exists('path_suffix', $router_config)) $this->path_suffix = trim($router_config['path_suffix']);
+				if (array_key_exists('ignore_case', $router_config)) $this->ignore_case = !!$router_config['ignore_case'];
+				if (array_key_exists('domain', $router_config)) $this->domain = $router_config['domain'];
+				if (array_key_exists('default_route', $router_config)) $this->default_route = $router_config['default_route'];
+				if (array_key_exists('on_entered', $router_config)) $this->on_entered = $router_config['on_entered'];
+				if (array_key_exists('on_completed', $router_config)) $this->on_completed = $router_config['on_completed'];
+			} else $this->base_path = trim($router_config);
+		}
 		if ($domain) $this->domain = $domain;
 		if (isset($default_route)) $this->default_route = $default_route;
 		if (empty(self::$query_path)) {
 			self::$query_path = parse_url($_SERVER['REQUEST_URI'], PHP_URL_PATH);
 		}
-		
 	}
 
 	private function __clone() {
@@ -70,11 +88,25 @@ class Router {
 		$this->default_route = $route;
 	}
 	
+	/**
+	 * 设置路由达到时的回调函数
+	 */
+	public function prime($callback) {
+		$this->on_entered = $callback;
+	}
+	
+	/**
+	 * 设置路由完成时的回调函数
+	 */
+	public function always($callback) {
+		$this->on_completed = $callback;
+	}
+	
 	public function __call($method, $args) {
-		if (in_array($method, array('get','post','put','delete', 'gest', 'gets', 'pget', 'rest'))) {
+		if (in_array($method, array('get','post','put','delete','patch','head', 'gest','gets','pget','rest'))) {
 			$method = strtoupper($method);
 			if ($method == 'GETS' or $method == 'GEST') $method = ['GET', 'POST'];
-			elseif ($method == 'PGET' or $method == 'REST') $method = ['POST', 'PUT', 'GET', 'DELETE'];
+			elseif ($method == 'PGET' or $method == 'REST') $method = ['POST', 'PUT', 'GET', 'DELETE','PATCH'];
 			else $method = [$method];
 			if (count($args) < 2) {
 				trigger_error(sprintf('参数错误(count eq 2)，当前：%s', count($args)), E_USER_WARNING);
@@ -90,8 +122,10 @@ class Router {
 					'method' => $method
 				);
 			}
-			$route = new Route($pattern, $callback);
-			$this->set($route);
+			foreach ((array)$pattern as $_pattern) {
+				$route = new Route($_pattern, $callback);
+				$this->set($route);
+			}
 			return $route;
 		}
 		
@@ -126,7 +160,7 @@ class Router {
 	 */
 	public function route($pattern, $callback, $method=null) {
 		if (! is_string($pattern)) return $this;
-		$pattern = str_replace(array('//', '(', ')'), array('/', '\(', '\)'), $pattern); //替换正则字符
+		//$pattern = str_replace(array('//', '(', ')'), array('/', '\(', '\)'), $pattern); //替换正则字符
 		foreach (static::$match_types as $to => $from) {
 			$pattern = str_replace($from, $to, $pattern);
 		}
@@ -152,6 +186,17 @@ class Router {
 	}
 	
 	/**
+	 * 全匹配路由
+	 * @param string $path
+	 * @param mixed $callback
+	 */
+	public function all($path, $callback) {
+		$path = preg_quote($path) . '(?:[\/]{0,1}(.+?)|)';
+		$this->routes[$path] = $callback;
+		return $this;
+	}
+	
+	/**
 	 * 组合路由器到路由蓝点
 	 * @param string $pattern
 	 * @param Router $router
@@ -164,15 +209,27 @@ class Router {
 	}
 	
 	/**
+	 * 捆绑（控制器）类/对象到路由模块分组
+	 * @param string $path
+	 * @param mixed $binding
+	 */
+	public function bind($path, $binding) {
+		$this->packs[$path] = $binding;
+		return $this;
+	}
+	
+	/**
 	 * 开始路由功能
 	 * @param Faddle $app
 	 */
 	public function execute($app=null) {
-		if ($app) self::$app = $app;
+		if ($app) {self::$app = $app;
 		if (! self::$app instanceof \Faddle\Faddle) {
 			trigger_error(sprintf('应用类型错误：%s', gettype($app)), E_USER_WARNING);
 			self::$app = App::instance();
-		}
+		}}
+		if (! self::$root_router) self::$root_router = $this;
+		
 		//在本路由开始之前，通知应用触发本事件。
 		self::before_route($this);
 		//先经过本路由器中间件
@@ -183,6 +240,8 @@ class Router {
 			//已匹配并转发，未被本路由执行。
 			return;
 		}
+		//进入本路由器，开始分发请求
+		if (is_callable($this->on_entered)) call_user_func($this->on_entered);
 		if ($matched === 1) {
 			$this->dispatch();
 		} elseif ($matched === 2) { //需要中断分配路由，由中间件或其他请求方式处理。
@@ -191,6 +250,7 @@ class Router {
 		}
 		
 		//已回应请求，路由完成。
+		if (is_callable($this->on_completed)) call_user_func($this->on_completed);
 		self::completed();
 		
 	}
@@ -202,19 +262,26 @@ class Router {
 		//$uri = parse_url($_SERVER['REQUEST_URI'], PHP_URL_PATH);
 		if (! isset($uri)) $uri = self::$query_path;
 		//if (($strpos = strpos($uri, '?')) !== false) $uri = substr($uri, 0, $strpos);
-		$uri = '/' . ltrim($uri, '/');
-		foreach ($this->blueprints as $pattern => $routers) { //找到路由蓝点中的匹配根路径的路由
+		if (func_get_arg(0) or (self::$group_path and (rtrim(self::$group_path, '/') != self::$group_path)))
+			$uri = '/' . ltrim($uri, '/'); //转换为习惯写法，不一定合理
+		elseif (empty($uri)) $uri = '/';
+		
+		foreach ($this->blueprints as $pattern => $routers) { //找到路由蓝图中的匹配根路径的路由
 			$pattern = '/' . ltrim($pattern, '/');
-			foreach ((array) $routers as $router ) {
-			if (stripos($uri, $pattern) === 0 and $router->checkdomain()) {
+			foreach ((array) $routers as $router ) { //多域名匹配的情况
+				if (stripos($uri, $pattern) !== 0) continue;
+				if (! $router->checkdomain()) continue;
+				$luri = substr($uri, strlen($pattern)); //不允许蓝图的根路径是部分单词匹配
+				if (! empty($luri) and (rtrim($pattern, '/') == $pattern) 
+					and in_array(strtolower(substr($luri, 0, 1)), range('a', 'z'))) continue;
+				self::$group_path = rtrim(self::$group_path, '/') . '/' . ltrim($pattern, '/'); //蓝图匹配成功
 				self::$query_path = substr(self::$query_path, strlen($pattern));
 				$router->execute();
 				return -1;
 			}
-			}
 		}
 		$check = false;
-		if (! empty($this->base_path)) {
+		if (! empty($this->base_path)) { //存在根路由时
 			if ((strpos($uri, $this->base_path)) === 0) {
 				$_uri = substr($uri, strlen($this->base_path));
 				if (empty($_uri) or strpos($_uri, '/') === 0) {
@@ -228,8 +295,15 @@ class Router {
 			return 0;
 		}
 		
+		if ($this->ignore_case) $case = 'iu'; else $case = 'u'; //区分大小写
 		foreach ($this->routes as $pattern => $callback) {
-			$pattern = '/^(' . str_replace('/', '\/', $pattern) . ')(\?[^#]*)?(#.*)?$/';
+			if (! empty($this->path_suffix) and rtrim($pattern, '/') == $pattern)
+				$pattern = $pattern . preg_quote($this->path_suffix); //附加后缀
+			//if ($pattern == '/' and self::$query_path == '') //判断路径末尾是否严格匹配带'/'符号
+				//return $this->load_callback($callback);
+			//if ($pattern == '//' and self::$query_path == '/')
+				//return $this->load_callback($callback);
+			$pattern = '/^(' . str_replace('/', '\/', $pattern) . ')(\?.*)?$/' . $case;
 			if (preg_match($pattern, $uri, $params)) {
 				unset($params[0]);
 				array_shift($params);
@@ -239,6 +313,16 @@ class Router {
 				return $this->load_callback($callback);
 			}
 		}
+		
+		foreach ($this->packs as $path => $binding) { //模块控制组
+			$path = '/' . trim($path, '/');
+			if (stripos($uri, $path) !== 0) continue;
+			$path = substr($uri, strlen($path));
+			if (!empty($path) and ltrim($path, '/') == $path) continue;
+			$callback = $this->parse_binding($path, $binding);
+			return $this->load_callback($callback);
+		}
+		
 		if (isset($this->default_route)) {
 			return $this->load_callback($this->default_route);
 		} else {
@@ -252,14 +336,13 @@ class Router {
 	 */
 	private function load_callback($callback) {
 		$middleware = [];
-		$request_method = isset($_SERVER['HTTP_X_HTTP_METHOD_OVERRIDE'])
-							? $_SERVER['HTTP_X_HTTP_METHOD_OVERRIDE'] : $_SERVER['REQUEST_METHOD'];
+		$request_method = Request::method();
 		if ($callback instanceof Route) {
 			$route = $callback;
 			$uses = $route->uses;
 			$name = $route->name;
 			$middleware = $route->middlewares;
-			if (! $route->matchMethod() and $request_method != 'OPTIONS') {
+			if (! $route->matchMethod()) {
 				self::badrequest();
 				return 0;
 			}
@@ -272,7 +355,7 @@ class Router {
 			$name = array_key_exists('as', $callback) ? $callback['as'] : null;
 			$middleware = array_key_exists('middleware', $callback) ? $callback['middleware'] : [];
 			$callback = array_key_exists('controller', $callback) ? $callback['controller'] : null;
-			if (! in_array($request_method, (array) $method) and $request_method != 'OPTIONS') {
+			if (! in_array($request_method, array_merge((array) $method, array('HEAD', 'OPTIONS')))) {
 				self::badrequest();
 				return 0;
 			}
@@ -282,15 +365,88 @@ class Router {
 		}
 		
 		$this->middlewares = array_merge($this->middlewares, (array)$middleware);
-		$this->uses = $uses;
+		$this->uses = $uses ?: '';
 		$this->matched_name = $name;
 		$this->callback = $callback;
 		
-		if ($request_method == 'OPTIONS' or Response::getInstance()->prepared) {
-			return 2;
+		if (in_array($request_method, array('HEAD', 'OPTIONS')) 
+			and empty(array_intersect((array) $method, array('HEAD', 'OPTIONS'))) 
+			or Response::getInstance()->prepared) {
+				return 2;
 		}
 		
 		return 1;
+	}
+	
+	/**
+	 * 解析路由绑定类
+	 * @return callable
+	 */
+	private function parse_binding($path, $binding) {
+		$parts = explode('/', ltrim($path, '/'));
+		$parts = array_map('rawurldecode', $parts);
+		if (is_callable($binding)) $binding = call_user_func($binding);
+		if (class_exists($binding)) $binding = new $binding;
+		if (!is_object($binding)) return $binding;
+		$config = ['index'=>'index','otherwise'=>'otherwise','camelcase'=>false]; //绑定配置
+		if (property_exists($binding, 'config')) $config = array_merge($config, $binding->config);
+		$method = strtolower(Request::method());
+		$count = count($parts);
+		$named = function() {
+			$args = array_map('strtolower', func_get_args());
+			if ($config['camelcase']) { //是否是采用驼峰命名法
+				return array_shift($args) . implode('', array_map('ucfirst', $args));
+			} else {
+				return implode('_', $args);
+			}
+		};
+		switch ($count) {
+		case 1:
+			$method = $parts[0] ?: $config['index']; //默认方法
+			break;
+		case 2:
+			if (method_exists($binding, $_method = $named($method, $parts[0])))
+				$method = $_method;
+			else $method = $parts[0];
+			$this->params = array($parts[1]);
+			break;
+		case 3:
+			if (method_exists($binding, $_method = $named($method, $parts[0], $parts[1]))) {
+				$method = $_method;
+				$this->params = array($parts[2]);
+			} elseif (method_exists($binding, $_method = $named($parts[0], $parts[1]))) {
+				$method = $_method;
+				$this->params = array($parts[2]);
+			} elseif (method_exists($binding, $_method = $named(($parts[2] ?: $method), $parts[0]))) {
+				$method = $_method;
+				$this->params = array($parts[1]);
+			} else {
+				$method = $parts[0];
+				$this->params = array($parts[1], $parts[2]);
+			}
+			break;
+		case 4:
+			if (method_exists($binding, $_method = $named($method, $parts[0], $parts[2]))) {
+				$method = $_method;
+				$this->params = array($parts[1], $parts[3]);
+			} elseif (method_exists($binding, $_method = $named(($parts[3] ?: $method), $parts[0] . $parts[1]))) {
+				$method = $_method;
+				$this->params = array($parts[2]);
+			} else {
+				$method = $parts[0];
+				$this->params = array($parts[1], $parts[2], $parts[3]);
+			}
+			break;
+		default:
+			$method = $config['otherwise']; //其他方法
+			$this->params = $parts;
+		}
+		if (in_array($method, array($parts[0])) and !method_exists($binding, $method)) {
+			$method = $config['otherwise'];
+			$this->params = $parts;
+		}
+		
+		return [$binding, $method];
 	}
 	
 	/**
@@ -303,9 +459,10 @@ class Router {
 			$params = array_merge($this->callback->params(), $params);
 		}
 		return array (
-			'middleware' => $this->middlewares,
-			'uses' => $this->uses,
+			//'middleware' => $this->middlewares,
+			//'uses' => $this->uses,
 			'name' => $this->matched_name,
+			'group' => self::$group_path,
 			'params' => $params,
 			'callback' => $this->callback
 		);
@@ -319,6 +476,7 @@ class Router {
 		$data['args'] = $this->params;
 		Request::data($data); //设置本次请求的参数
 		
+		self::$matched_route = $this->getMatched();
 		self::obtain($this); //已匹配
 		
 		if ($this->callback instanceof Route) {
@@ -346,11 +504,16 @@ class Router {
 			$route->emitAfter();
 		} else if ($this->callback instanceof \Closure) {
 			$result = call_user_func_array($this->callback, array_values($this->params));
-		} else if (is_array($this->callback)) {
-			$result = call_user_func_array($this->callback, array_values($this->params));
 		} else {
-			if ($callback = $this->parse_callback()) {
-				$result = call_user_func_array($callback, array_values($this->params));
+			if (is_string($this->callback)) {
+				if ($callback = $this->parse_callback()) $this->callback = $callback;
+			}
+			if (is_array($this->callback) and is_callable($this->callback)) {
+				if (method_exists($this->callback[0], '_before_action'))
+					call_user_func(array($this->callback[0], '_before_action'), $this);
+				$result = call_user_func_array($this->callback, array_values($this->params));
+				if (method_exists($this->callback[0], '_after_action'))
+					call_user_func(array($this->callback[0], '_after_action'), $this);
 			} else {
 				trigger_error(sprintf('控制器调用出错：%s', strval($this->callback)), E_USER_WARNING);
 				$result = false;
@@ -387,15 +550,15 @@ class Router {
 				$calls[1] = '__invoke';
 			}
 		}
-		$fun_method = $calls[1];
+		$action = $calls[1];
 		try {
 			$calls[0] = $this->uses . '\\' . $calls[0];
 			if (class_exists($calls[0])) $controller = new $calls[0]();
 		} catch (Exception $e) {
 			//print $e->getMessage();
 		}
-		if ($controller and method_exists($controller, $fun_method))
-			return array($controller, $fun_method);
+		if ($controller and method_exists($controller, $action))
+			return array($controller, $action);
 		else
 			return false;
 	}
@@ -453,30 +616,35 @@ class Router {
 		$this->middlewares = array();
 	}
 
+	private function checkdomain() {
+		$domain = $this->domain;
+		if (!empty($domain)) {
+			return static::check_domain($domain);
+		}
+		return true;
+	}
+
 	/**
 	 * 检查路由是否匹配指定的域名
 	 *
 	 * @param string $domain Set Domain
 	 * @return array|boolean arguments
 	 */
-	private function checkdomain($domain=null) {
-		if (!isset($domain)) $domain = $this->domain;
-		if (!empty($domain)) {
-			$server = $_SERVER['HTTP_HOST'] ?: $_SERVER['SERVER_NAME'];
-			if (is_array($domain)) {
-				foreach ($domain as $d) {
-					if (strtolower($d) == strtolower($server)) return true;
-				}
-			} else {
-				$domain = (string)$domain;
-				if (preg_match($domain, $server, $arguments)) {
-						return $arguments;
-				}
-				return stristr($server, $domain);
+	public static function check_domain($domain=null) {
+		if (empty($domain)) return true;
+		$server = $_SERVER['HTTP_HOST'] ?: $_SERVER['SERVER_NAME'];
+		if (is_array($domain)) {
+			foreach ($domain as $d) {
+				if (strtolower($d) == strtolower($server)) return true;
 			}
-			return false;
+		} else {
+			if (stristr($server, $domain)) return true;
+			$domain = '/' . str_replace('\*', '(.*?)', preg_quote((string)$domain)) . '/i';
+			if (preg_match($domain, $server, $arguments)) {
+				return $arguments;
+			}
 		}
-		return true;
+		return false;
 	}
 
 	/**
@@ -632,52 +800,56 @@ class Router {
 	
 	protected static function obtain($who) {
 		 //通知应用请求已匹配本路由
-		if (self::$app != null) self::$app->_obtain($who);
+		if (static::$app != null) static::$app->_obtain($who);
 	}
 	
 	protected static function next($mw) {
 		//通知应用请求正在通过中间件处理。
-		if (self::$app != null) self::$app->_next($mw); 
+		if (static::$app != null) static::$app->_next($mw); 
 	}
 	
 	protected static function present(&$content) {
 		//通知应用将要回应的文本内容。
-		if (self::$app != null) self::$app->_present($content); 
+		if (static::$app != null) static::$app->_present($content); 
 	}
 	
 	protected static function before_route($who) {
 		//将本路由作为参数，通知应用本路由将开始。
-		if (self::$app != null) self::$app->_beforeRoute($who);
+		if (static::$app != null) static::$app->_beforeRoute($who);
 	}
 	
 	protected static function completed() {
-		if (self::$app != null) self::$app->_completed();
+		if (static::$app != null) static::$app->_completed();
 	}
 	
 	protected static function notfound() {
 		if (! headers_sent($file, $line)) {
 			http_response_code(404);
 		}
-		if (self::$app != null) self::$app->_notfound();
+		Response::instance()->status(404);
+		if (static::$app != null) static::$app->_notfound();
 	}
 	
 	protected static function badrequest() {
 		if (! headers_sent($file, $line)) {
 			http_response_code(400);
 		}
-		if (self::$app != null) self::$app->_badrequest();
+		Response::instance()->status(400);
+		if (static::$app != null) static::$app->_badrequest();
 	}
 	
 	protected static function error() {
 		if (! headers_sent($file, $line)) {
 			http_response_code(503);
 		}
-		if (self::$app != null) self::$app->_unavailable();
+		Response::instance()->status(503);
+		if (static::$app != null) static::$app->_unavailable();
 	}
 	
 	protected static function redirect($path) {
 		@header('Location: '.$path, true, 302);
 		//http_response_code(302);
+		Response::instance()->status(302);
 	}
 
 }

@@ -44,4 +44,48 @@ class ViewExtras {
 		
 	}
 
+/**
++ add view assets.
+
+mothod: assets($name, [$params]);
+
+set: View::setAssets($config);
+
+config: array(
+base_path => '',
+base_url => '',
+depends => [],
+...
+publish => [
+    'name' => [
+        'path' => '',
+        'only' => []
+    ]
+],
+map => [
+    $name => $path,
+    'jquery' => 'static/js/jquery.min.js'
+],
+bundles => [
+    js => [
+        
+    ],
+    css => [
+        
+    ]
+],
+all => [
+    source_path => '',
+    target_path => '',
+    commands => [
+        'less' => '',
+        ...
+    ],
+    files => [],
+    js => '',
+    css => '',
+]
+)
+*/
+
 }

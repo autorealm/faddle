@@ -15,7 +15,7 @@ use Faddle\Router\Router;
 			//"group": "serve", //组名。附在主路由中作为蓝图，不可与域名并存
 			"chdir": "serve", //工作目录。可选，可以是相对路径(自定义的或配置文件所在目录)，或者绝对路径(以'/'开头)
 			"router": "serve/routes.php", //路由器对象，文件必需返回该对象
-			//"index": "serve/index.php", //自定义的索引文件，不可与路由器对象并存
+			//"index": "serve/index.php", //自定义的索引文件，不可与路由器对象并存，可附加设置 base_path/path_suffix/ignore_case 
 			"routes": { //自定义的路由
 				"test1": "serve/test1.php",
 				"test2": "serve/test2.php"
@@ -57,7 +57,7 @@ class ServesRouter {
 			$_group = '';
 			if (isset($serve['domain'])) {
 				$_domain = $serve['domain'];
-				if (! static::check_domain($_domain)) continue; //只加载当前域名的路由器
+				if (! Router::check_domain($_domain)) continue; //只加载当前域名的路由器
 			} else if (isset($serve['group'])) {
 				$_group = $serve['group'];
 			}
@@ -69,7 +69,12 @@ class ServesRouter {
 			}
 			if (isset($serve['index'])) {
 				$_index = $serve['index'];
-				$_router = new Router('', $_domain, function() use ($_index, $filepath) {
+				$_config = array();
+				if (isset($serve['base_path'])) $_config['base_path'] = $serve['base_path'];
+				if (isset($serve['path_suffix'])) $_config['path_suffix'] = $serve['path_suffix'];
+				if (isset($serve['ignore_case'])) $_config['ignore_case'] = $serve['ignore_case'];
+				
+				$_router = new Router($_config, $_domain, function() use ($_index, $filepath) {
 					$result = require $filepath . '/' . $_index;
 					if (is_string($result)) return $result; //判断返回值(排除 boolean 值，需 string 类型)
 				});
@@ -139,23 +144,6 @@ class ServesRouter {
 		}
 		
 		return true;
-	}
-
-	public static function check_domain($domain=null) {
-		if (empty($domain)) return true;
-		$server = $_SERVER['HTTP_HOST'] ?: $_SERVER['SERVER_NAME'];
-		if (is_array($domain)) {
-			foreach ($domain as $d) {
-				if (strtolower($d) == strtolower($server)) return true;
-			}
-		} else {
-			$domain = (string)$domain;
-			if (preg_match($domain, $server, $arguments)) {
-					return $arguments;
-			}
-			return stristr($server, $domain);
-		}
-		return false;
 	}
 
 }

@@ -10,7 +10,7 @@ use Faddle\Http\Response as Response;
  * App
  */
 class App extends Faddle {
-	const VERSION = '1.2.0';
+	const VERSION = '1.2.1';
 	const VERCODE = 'Dawn';
 	private static $_instance;
 	private static $loads = array();

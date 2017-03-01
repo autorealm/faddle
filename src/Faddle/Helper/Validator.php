@@ -61,8 +61,9 @@ class Validator {
 		'realname' => '/^[\x{4e00}-\x{9fa5}]+$/u', //真实姓名
 		'password' => '/^[a-z0-9]{6,32}$/i', //密码
 		'area' => '/^0\d{2,3}$/', //区号
-		'version' => '/^\d+\.\d+\.\d+$/',       //版本号
-		'url' => '((https?)://(\S*?\.\S*?))([\s)\[\]{},;"\':<]|\.\s|$)', //URL
+		'version' => '/^\d+\.\d+\.\d+$/', //版本号
+		'color' => '/^#?+[0-9a-f]{3}(?:[0-9a-f]{3})?$/iD', //#颜色
+		'url' => '/((https?)://(\S*?\.\S*?))([\s)\[\]{},;"\':<]|\.\s|$)/i', //URL
 	);
 
 	/**
@@ -176,6 +177,11 @@ class Validator {
 			if ($field < $min || $field > $max) {
 				return false;
 			}
+		};
+		static::$methods['digit'] = function ($field, $utf8=false) {
+			return ($utf8)
+				? (bool) preg_match('/^\pN++$/uD', (string) $field)
+				: ctype_digit((string) $field);
 		};
 		
 		static::$default_added = true;

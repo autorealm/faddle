@@ -9,10 +9,11 @@ use Faddle\Helper\OneCacheHelper as CacheHelper;
  * @since 2015-9-21
  */
 class ViewEngine implements \IteratorAggregate {
-	public static $extends = array();
-	public static $modifiers = array();
 	public static $traces = array();
-	public static $first_engine;
+	public static $replaces = array();
+	public static $extends = array();
+	protected static $modifiers = array();
+	protected static $first_engine;
 	protected static $after_callbacks = array();
 	protected static $before_callbacks = array();
 	protected static $_macros = array();
@@ -51,6 +52,9 @@ class ViewEngine implements \IteratorAggregate {
 			});
 			ViewTemplate::helper('memory_usage', function() {
 				return round(memory_get_usage() / 1024 / 1024, 3).' MB';
+			});
+			ViewTemplate::helper('build_url', function($args) {
+				
 			});
 			ViewTemplate::extend(array('insert_js', 'insert_css'), ViewExtras::class);
 			self::extend(function($content) {
@@ -289,6 +293,8 @@ class ViewEngine implements \IteratorAggregate {
 		static::$traces[$this->file]['mid'] = microtime(true);
 		if ($is_first) { // 定位主模板
 			$contents = $this->padding($contents);
+			if (!empty(self::$replaces) and is_array(self::$replaces))
+				$contents = str_replace(array_keys(self::$replaces), array_values(self::$replaces), $contents);
 			static::$traces[$this->file]['loaded'] = true;
 		} else { // 分配数据
 			self::$first_engine->assign($this->data());
@@ -404,8 +410,19 @@ class ViewEngine implements \IteratorAggregate {
 	}
 	
 	/**
+	 * 扩展视图指令
+	 * @param $func 指令函数
+	 */
+	public static function extend(\Closure $func) {
+		if (!is_callable($func))
+			return false;
+		self::$extends[] = $func;
+		return true;
+	}
+	
+	/**
 	 * 扩展视图变量修饰器
-	 * @param $name string 名称
+	 * @param $name string|array 名称
 	 * @param func callable 变量修饰器函数 
 	 */
 	public static function extend_modifier($name, $func) {
@@ -413,7 +430,13 @@ class ViewEngine implements \IteratorAggregate {
 			return false;
 		if (!is_callable($func))
 			return false;
-		self::$modifiers[$name] = $func;
+		if (is_array($name)) {
+			foreach ($name as $alias) {
+				self::$modifiers[strtolower($alias)] = $func;
+			}
+		} else {
+			self::$modifiers[strtolower($name)] = $func;
+		}
 		return true;
 	}
 	
@@ -440,17 +463,6 @@ class ViewEngine implements \IteratorAggregate {
 			return false;
 		}
 		return $ret;
-	}
-	
-	/**
-	 * 扩展视图指令
-	 * @param $func 指令函数
-	 */
-	public static function extend(\Closure $func) {
-		if (!is_callable($func))
-			return false;
-		self::$extends[] = $func;
-		return true;
 	}
 	
 	public static function modifier_exists($name) {
@@ -526,7 +538,7 @@ class ViewEngine implements \IteratorAggregate {
 		self::extend_modifier('replace', function($input, $from, $to='') {
 			if (empty($from)) return $input;
 			if (empty($input)) return '';
-			if (strpos($from, '/') === 0 and substr_count($from, '/') > 1)
+			if (strpos($from, '/') === 0 and rtrim($from, '/') != $from)
 				return preg_replace($from, $to, $input);
 			return str_replace($from, $to, $input);
 		});
@@ -595,11 +607,20 @@ class ViewEngine implements \IteratorAggregate {
 				if (is_array($v) and isset($v[$by])) { $keysvalue[$k] = $v[$by];
 				} else { $keysvalue = array(); break; }
 			}
-			if ($asc) asort($keysvalue);
-			else arsort($keysvalue);
+			if ($asc) asort($keysvalue); else arsort($keysvalue);
 			reset($keysvalue);
 			foreach ($keysvalue as $k => $v) { $new_array[$k] = $input[$k]; }
 			return $new_array;
+		});
+		self::extend_modifier('sort', function($input, $field, $sort=1, $type=0) {
+			if (empty($field) or !is_array($input)) return $input;
+			foreach($input as $val) {
+				$order_arr[] = $val[$field];
+			}
+			$sort = $sort ? SORT_ASC: SORT_DESC;
+			$type  = !$type ? SORT_REGULAR : ($type == 1 ? SORT_STRING : SORT_NUMERIC);
+			array_multisort($order_arr, $sort, $type, $input);
+			return $order_arr;
 		});
 		self::extend_modifier('foreach', function($input, $tpl, $key=false, $params=null) {
 			$input = (array) $input;

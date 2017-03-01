@@ -197,6 +197,13 @@ class Response implements ResponseInterface {
 		return $this->status;
 	}
 	
+	public function type($type) {
+		if (is_string($type) and strpos($type, '/') > 1) {
+			$this->content_type = $type;
+		}
+		return $this->content_type;
+	}
+	
 	public function body($body=null) {
 		if (isset($body)) {
 			if (! empty($body)) $body = ltrim((string) $body);
@@ -305,8 +312,11 @@ class Response implements ResponseInterface {
 		
 		$this->header('Accept-Ranges', 'bytes');
 		$this->header('Content-Transfer-Encoding', 'binary');
-		if ($mimetype) $this->header('Content-type', $mimetype);
-		else $this->header('Content-Type', 'application/octet-stream');
+		if ($mimetype) {
+			$this->content_type = $mimetype;
+		} else {
+			$this->content_type = 'application/octet-stream';
+		}
 		$this->header('Content-length', filesize($path));
 		if ($download) $this->header('Content-Disposition', 'attachment; filename="'.$filename.'"');
 		$this->header('Last-Modified', gmdate('D, d M Y H:i:s', filemtime($path)) . ' GMT');
@@ -334,10 +344,10 @@ class Response implements ResponseInterface {
 			if (empty($callback)) {
 				throw new \InvalidArgumentException('$callback param cannot be empty.');
 			}
-			$this->header('Content-Type', 'application/javascript');
+			$this->content_type = 'application/javascript';
 			$this->body("$callback($json);");
 		} else {
-			$this->header('Content-Type', 'application/json');
+			$this->content_type = 'application/json';
 			$this->body($json);
 		}
 		
@@ -394,13 +404,16 @@ class Response implements ResponseInterface {
 		@header('Cache-Control: no-store, no-cache');
 		if ($type == 'json') {
 			@header('Content-Type: application/json');
+			if (static::$_instance) static::$_instance->content_type = 'application/json';
 			echo json_encode($result, JSON_UNESCAPED_UNICODE);
 		} else if ($type == 'xml') {
 			$xml = \Faddle\Helper\XMLHelper::createXML('result', $result);
 			@header('Content-Type: application/xml');
+			if (static::$_instance) static::$_instance->content_type = 'application/xml';
 			echo $xml;
 		} else if ($type == 'html') {
 			@header('Content-Type: text/html');
+			if (static::$_instance) static::$_instance->content_type = 'text/html';
 			$tpl = __DIR__ . '/notice.tpl';
 			$title = $code;
 			$subtitle = $message;
@@ -419,6 +432,7 @@ class Response implements ResponseInterface {
 			}
 		} else {
 			@header('Content-Type: text/plain');
+			if (static::$_instance) static::$_instance->content_type = 'text/plain';
 			if (!empty($data)) print_r($result);
 			else echo $message;
 		}
@@ -456,10 +470,10 @@ class Response implements ResponseInterface {
 	 */
 	public static function showMessage($message, $url='/', $time=5, $title='提示信息', $htcolor='#537BBC', $bgcolor='#FFF') {
 		$goto = "content=\"$time; url=$url\"";
-		$info = "将在 $time 秒后自动跳转，如不想等待可";
+		$info = "将在 <span id='wait'>$time</span> 秒后自动跳转，如不想等待可";
 		if (! $time or $time < 0) { //是否自动跳转
 			$goto = '';
-			$info = '如果需要返回请';
+			$info = '如果需要继续请';
 		}
 		echo <<<END
 <html>
@@ -483,6 +497,18 @@ class Response implements ResponseInterface {
 		<div class="info">$info <a href="$url">点击这里</a></div>
 	</div>
 </body>
+<script>
+(function(){
+    var wait = document.getElementById('wait');
+    var interval = setInterval(function() {
+        var time = --wait.innerHTML;
+        if (time <= 0) {
+            location.href = '$url';
+            clearInterval(interval);
+        };
+    }, 1000);
+})();
+</script>
 </html>
 END;
 		exit;

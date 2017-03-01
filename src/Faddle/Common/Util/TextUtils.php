@@ -705,9 +705,9 @@ class TextUtils {
 	 * @return string
 	 *
 	 */
-	public static function sys_auth($string, $operation = 'ENCODE', $key = '', $expiry = 0) {
+	public static function sys_auth($string, $operation = 'ENCODE', $key = 'test', $expiry = 0) {
 		$key_length = 4;
-		$key = md5($key != '' ? $key : pc_base::load_config('system', 'auth_key'));
+		$key = md5($key != '' ? $key : 'test');
 		$fixedkey = md5($key);
 		$egiskeys = md5(substr($fixedkey, 16, 16));
 		$runtokey = $key_length ? ($operation == 'ENCODE' ? substr(md5(microtime(true)), -$key_length) : substr($string, 0, $key_length)) : '';
@@ -748,12 +748,12 @@ class TextUtils {
 	 * 字符串加密、解密扩展函数
 	 *
 	 * @param string $txt
-	 * @param string $operation
+	 * @param string $operation 'ENCODE' or 'DECODE'
 	 * @param string $key
 	 * @return string
 	 *
 	 */
-	public static function sys_auth_ex($string, $operation = 'ENCODE', $key) {
+	public static function sys_auth_ex($string, $operation = 'ENCODE', $key = 'test') {
 		$encrypted_data = "";
 		$td = mcrypt_module_open('rijndael-256', '', 'ecb', '');
 		
@@ -801,6 +801,114 @@ class TextUtils {
 		}
 		
 		return $out;
+	}
+
+
+	/**
+	 * DES 解密函数
+	 * 
+	 * @param string $encrypted 加密字符串
+	 * @param string $key 密钥
+	 * @return string 
+	 */
+	function des_decode($encrypted, $key) {
+		$encrypted = base64_decode($encrypted);
+		$td = mcrypt_module_open(MCRYPT_DES, '', MCRYPT_MODE_CBC, '');
+		$iv = mcrypt_create_iv(mcrypt_enc_get_iv_size($td), MCRYPT_RAND);
+		$ks = mcrypt_enc_get_key_size($td);
+		
+		mcrypt_generic_init($td, $key, $key);
+		$decrypted = mdecrypt_generic($td, $encrypted);
+		
+		mcrypt_generic_deinit($td);
+		mcrypt_module_close($td);
+		
+		$pad = ord($decrypted{strlen($decrypted)-1});
+		if ($pad > strlen($decrypted))
+			return $decrypted;
+		if (strspn($decrypted, chr($pad), strlen($decrypted) - $pad) != $pad)
+			return $decrypted;
+		return substr($decrypted, 0, -1 * $pad);
+	}
+
+	/**
+	 * DES 加密函数
+	 * 
+	 * @param string $text 字符串
+	 * @param string $key 密钥
+	 * @return string 
+	 */
+	function des_encode($key, $text) {
+		$block = 8;
+		$pad = $block - (strlen($text) % $block);
+		$y = $text . str_repeat(chr($pad), $pad);
+		
+		$td = mcrypt_module_open(MCRYPT_DES, '', MCRYPT_MODE_CBC, '');
+		$ks = mcrypt_enc_get_key_size($td);
+
+		mcrypt_generic_init($td, $key, $key);
+		$encrypted = mcrypt_generic($td, $y);
+		mcrypt_generic_deinit($td);
+		mcrypt_module_close($td);
+		return base64_encode($encrypted);
+	} 
+
+	public static function xor_encrypt($string, $key) {
+		$str_len = strlen($string);
+		$key_len = strlen($key);
+		for ($i = 0; $i < $str_len; $i++) {
+			for ($j = 0; $j < $key_len; $j++) {
+				$string[$i] = $string[$i] ^ $key[$j];
+			}
+		}
+		return $string;
+	}
+
+	public static function xor_decrypt($string, $key) {
+		$str_len = strlen($string);
+		$key_len = strlen($key);
+		for ($i = 0; $i < $str_len; $i++) {
+			for ($j = 0; $j < $key_len; $j++) {
+				$string[$i] = $key[$j] ^ $string[$i];
+			}
+		}
+		return $string;
+	}
+
+	/**
+	 * Run a shell command
+	 * 
+	 * @param   string  command to run
+	 * @return  string
+	 */
+	public static function run_command($command, $cwd=null, $envopts=array()) {
+		$descriptorspec = array(
+			1 => array('pipe', 'w'),
+			2 => array('pipe', 'w'),
+		);
+		$pipes = array();
+		
+		if (count($_ENV) === 0) {
+			$env = NULL;
+			foreach($envopts as $k => $v) {
+				putenv(sprintf("%s=%s",$k,$v));
+			}
+		} else {
+			$env = array_merge($_ENV, $envopts);
+		}
+		
+		$resource = proc_open($command, $descriptorspec, $pipes, $cwd, $env);
+		
+		$stdout = stream_get_contents($pipes[1]);
+		$stderr = stream_get_contents($pipes[2]);
+		foreach ($pipes as $pipe) {
+			fclose($pipe);
+		}
+		
+		$status = trim(proc_close($resource));
+		if ($status) throw new \Exception($stderr);
+		
+		return $stdout;
 	}
 
 	public static function entities_to_ascii($str, $all = TRUE) {

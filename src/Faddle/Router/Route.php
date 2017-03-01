@@ -46,6 +46,12 @@ class Route {
 	public $name = null;
 
 	/**
+	 * 路由的别名
+	 * @var mixed
+	 */
+	public $alias = null;
+
+	/**
 	 * 路由自定义的过滤器
 	 * @var array
 	 */
@@ -80,12 +86,22 @@ class Route {
 	 */
 	const ROUTE_ESCAPE_REGEX = '`(?<=^|\})[^\}\{\?]+?(?=\{|$)`';
 	
-	protected static $match_types = array(
+	public static $patterns = array(
+		'any' => '[^/]+',
+		'alpha' => '[0-9A-Za-z]+',
+		'name' => '\w+',
+		'id' => '\d+',
+		'year' => '\d{4}',
+		'month' => '\d{2}',
+	);
+	
+	public static $match_types = array(
 		'INT'  => '[0-9]++',
 		'HEX'  => '[0-9A-Fa-f]++',
-		'STR'  => '[0-9A-Za-z-_]++',
-		'*'  => '.+?',
-		'**' => '.++',
+		'STR'  => '[0-9A-Za-z\-_\.\%]++',
+		'ANY'  => '[^/]+?',
+		'ALL'  => '.*?',
+		'LOT' => '.++',
 		''   => '[^/]+?'
 	);
 
@@ -97,10 +113,11 @@ class Route {
 		$this->before_callbacks = new SplQueue();
 		$this->error_callbacks = new SplStack();
 		
-		$this->pattern = (string)$pattern;
+		$this->setPattern((string)$pattern);
 		$this->method = isset($config['method']) ? (array)$config['method'] : array('GET', 'POST');
 		$this->name = isset($config['as']) ? (string)$config['as'] : null;
 		$this->uses = array_key_exists('use', $config) ? (string)$config['use'] : '';
+		$this->alias = array_key_exists('alias', $config) ? (array)$config['alias'] : '';
 		$callback = isset($config['controller']) ? $config['controller'] : null;
 		$this->setCallback($callback);
 		$this->middlewares(array_key_exists('middleware', $config) ? $config['middleware'] : null);
@@ -132,6 +149,7 @@ class Route {
 	public function getConfig() {
 		return array(
 				'as' => $this->name,
+				'alias' => $this->alias,
 				'use' => $this->uses,
 				'controller' => $this->callback,
 				'middleware' => $this->middlewares,
@@ -148,7 +166,7 @@ class Route {
 		$request_method = isset($_SERVER['HTTP_X_HTTP_METHOD_OVERRIDE'])
 				? $_SERVER['HTTP_X_HTTP_METHOD_OVERRIDE'] : $_SERVER['REQUEST_METHOD'];
 		$method = array_map('strtoupper', (array)$this->method);
-		if (in_array($request_method, $method))
+		if (in_array($request_method, array_merge($method, array('HEAD', 'OPTIONS'))))
 			return true;
 		else
 			return false;
@@ -228,10 +246,27 @@ class Route {
 		return $this->middlewares;
 	}
 
+	public function setPattern($pattern=null) {
+		return $this->pattern($pattern);
+	}
 	public function pattern($pattern=null) {
 		if (isset($pattern)) {
-			//$pattern = strtr($pattern, self::$match_types);
-			$this->pattern = (string)$pattern;
+			if (preg_match_all('/(?:\(.*?\)|\[.*?\]|\{.*?\}|\<.*?\>|\/\:\w+)/', $pattern, $matchs)) {
+				$replaces = array_map(function($a) {
+						return '@'.$a.'@';
+					}, array_keys($matchs[0]));
+				$pattern = str_replace($matchs[0], $replaces, $pattern);
+				$pattern = preg_quote($pattern);
+				$pattern = str_replace($replaces, $matchs[0], $pattern);
+			}
+			foreach(static::$patterns as $key => $value) {
+				$key = trim($key);
+				$value = trim($value, '()');
+				$replaced = '(?P<' . $key . '>'. $value . ')';
+				$pattern = str_replace(array('/[:'. $key . ']', '<'. $key . '>', '/:'. $key . ''), 
+					array('(?:/' . $replaced . '|)', '' . $replaced . '?', '/' . $replaced . ''), $pattern);
+			}
+			$this->pattern = preg_replace('/<(\w+)\:(.+?)>/', '(?P<$1>$2)', $pattern);
 			return $this;
 		}
 		return $this->pattern;
@@ -298,7 +333,7 @@ class Route {
 			if (count($callback) < 2) $callback[1] = '__invoke';
 			$fun_method = $callback[1];
 			try {
-				$callback[0] = $this->uses . '\\' . $callback[0];
+				$callback[0] = ($this->uses ?: '') . '\\' . $callback[0];
 				if (class_exists($callback[0])) $callback[0] = new $callback[0]();
 			} catch (Exception $e) {
 				//print $e->getMessage();
@@ -371,7 +406,7 @@ class Route {
 	 * @return string Pattern 正则形态
 	 */
 	private function convertToRegex($route) {
-		$route = str_replace(array('//', '(', ')'), array('/', '(', ')'), $route);
+		//$route = str_replace(array('//', '(', ')'), array('/', '(', ')'), $route);
 		$match_types = self::$match_types;
 		
 		return '' . preg_replace_callback("@\{(?:([^:\}]+)|)(?::([\w-%]+)|)?\}@", function($matchs) use($match_types) {

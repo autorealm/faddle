@@ -10,7 +10,7 @@ class FileUtils {
 	 * @param	string	path to file
 	 * @return	string
 	 */
-	public static  function read_file($file) {
+	public static function read_file($file) {
 		if (!file_exists($file)) {
 			return FALSE;
 		}
@@ -44,7 +44,7 @@ class FileUtils {
 	 * @param string file data
 	 * @return bool
 	 */
-	public static  function write_file($path, $data, $mode = FOPEN_WRITE_CREATE_DESTRUCTIVE) {
+	public static function write_file($path, $data, $mode = FOPEN_WRITE_CREATE_DESTRUCTIVE) {
 		if ( ! $fp = @fopen($path, $mode)) {
 			return FALSE;
 		}
@@ -55,6 +55,40 @@ class FileUtils {
 		fclose($fp);
 		
 		return TRUE;
+	}
+
+	/**
+	 * 取得文件特定行内容
+	 * @return array
+	 */
+	public static function get_lines($file, $start=1, $end=0) {
+		$fp = new \SplFileObject($file, 'rb');
+		$content = array();
+		if ($end == 0) $end = count_line($file);
+		$count = $end - $start;
+		$fp->seek($start-1);
+		for ($i = 0; $i <= $count; ++$i) {
+			$content[] = $fp->current();
+			$fp->next();
+		}
+		return array_filter($content);
+	}
+
+	/**
+	 * 计算文件行数
+	 */
+	public static function count_line($file) {
+		$fp = fopen($file, 'rb');
+		$i = 0;
+		while(!feof($fp)) {
+			if ($data = fread($fp, 1024*1024*2)) {
+				$num = substr_count($data, PHP_EOL);
+				$i += $num;
+			}
+			//$line = stream_get_line($fp, 1024, "\n");
+		}
+		fclose($fp);
+		return $i;
 	}
 
 	/**

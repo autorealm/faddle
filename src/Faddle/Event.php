@@ -34,15 +34,18 @@ class Event {
 	 * 注册某事件监听器
 	 * @param string $event 事件名称
 	 * @param mixed $callback 回调函数或数组参数
+	 * @param mixed $extras 附加参数
+	 * @param mixed $append 是否顺序加入，否则放在队列开头
 	 * @return Event
 	 */
-	public function on($event, $callback) {
+	public function on($event, $callback, $extras=null, $append=true) {
 		$event = strtolower($event);
 		if (in_array($event, ($this->events))) {
 			if (!isset($this->listeners[$event])) {
 				$this->listeners[$event] = array();
 			}
-			$this->listeners[$event][] = $callback;
+			if ($append) $this->listeners[$event][] = array($callback, (array) $extras);
+			else array_unshift($this->listeners[$event], array($callback, (array) $extras));
 			//return true;
 		} else {
 			//return false;
@@ -77,9 +80,21 @@ class Event {
 		$event = strtolower($event);
 		if (!empty($this->listeners[$event])) {
 			if (is_null($callback)) {
+				unset($this->listeners[$event]);
 				$this->listeners[$event] = array();
-			} else if (($key = array_search($callback, $this->listeners[$event])) !== false) {
-				unset($this->listeners[$event][$key]);
+			} else {
+				if (($key = array_search(array($callback), $this->listeners[$event])) === false) {
+					foreach ($this->listeners[$event] as $k => $v) {
+						if ($callback === $v[0]) {
+							$key = $k;
+							break;
+						}
+					}
+				}
+				if ($key !== false) {
+					unset($this->listeners[$event][$key]);
+					$this->listeners[$event] = array_values($this->listeners[$event]);
+				}
 			}
 		}
 		return $this;
@@ -112,18 +127,18 @@ class Event {
 		
 		if (empty($this->listeners[$event])) return false;
 		if ($then and is_callable($then)) $hasthen = true; else $hasthen = false;
-		foreach ($this->listeners[$event] as &$callback) {
-			if (is_array($callback)) { //此处回调带扩展参数
-				$extras = isset($callback[1]) ? $callback[1] : null;
-				$callback = $callback[0];
+		foreach ($this->listeners[$event] as $i => &$listener) {
+			if (is_array($listener)) { //此处回调带扩展参数
+				$extras = isset($listener[1]) ? $listener[1] : null;
+				$callback = $listener[0];
 				if ($extras and is_array($extras)) {
 					if (array_key_exists('times', $extras)) $times = & $extras['times'];
 					if (array_key_exists('params', $extras)) $_params = (array) $extras['params'];
 				}
-			}
+			} else $callback = $listener;
 			if (isset($times)) {
 				if (intval($times) <= 0) {
-					unset($callback);
+					unset($this->listeners[$event][$i]);
 					continue;
 				} else $times--;
 			}
@@ -199,7 +214,15 @@ class Event {
 	 */
 	public function has($key, $value=null) {
 		if (! is_null($value) and isset($this->listeners[$key])) {
-			return (array_search($value, $this->listeners[$key])) !== false;
+			if (($key = array_search(array($value), $this->listeners[$key])) === false) {
+				foreach ($this->listeners[$key] as $k => $v) {
+					if ($value === $v[0]) {
+						$key = $k;
+						break;
+					}
+				}
+			}
+			return $key !== false;
 		}
 		return (array_search($key, $this->events)) !== false;
 	}

@@ -155,7 +155,7 @@ class Request implements RequestInterface {
 	 * @param string $type 需判断的内容格式
 	 */
 	public static function accept($type=null) {
-		$accept = $_SERVER['HTTP_ACCEPT'] ?: '';
+		$accept = getenv('HTTP_ACCEPT') ?: '';
 		if (is_null($type)) return $accept;
 		$accepts = explode(';', $accept);
 		$accept = explode(',', $accepts[0]);
@@ -174,7 +174,7 @@ class Request implements RequestInterface {
 	 * @return null 无语言请求，0-1 用户语言喜好
 	 */
 	public static function language($lang=null) {
-		$accept = $_SERVER['HTTP_ACCEPT_LANGUAGE'] ?: '';
+		$accept = getenv('HTTP_ACCEPT_LANGUAGE') ?: '';
 		if (empty($accept)) return null;
 		$_accepts = explode(';', $accept);
 		$accepts = array();
@@ -193,7 +193,7 @@ class Request implements RequestInterface {
 			array_map('trim', $accept);
 			array_map('strtolower', $accept);
 			if (in_array(strtolower($lang), $accept)) {
-				return float($q);
+				return floatval($q);
 			}
 		}
 		return 0;
