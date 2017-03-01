@@ -199,10 +199,10 @@ class Router {
 	/**
 	 * 组合路由器到路由蓝点
 	 * @param string $pattern
-	 * @param Router $router
+	 * @param Router|String $router
 	 */
-	public function group($pattern, Router $router) {
-		if ($router instanceof Router) {
+	public function group($pattern, $router) {
+		if ($router instanceof Router or is_string($router)) {
 			$this->blueprints[$pattern][] = $router;
 		}
 		return $this;
@@ -270,12 +270,18 @@ class Router {
 			$pattern = '/' . ltrim($pattern, '/');
 			foreach ((array) $routers as $router ) { //多域名匹配的情况
 				if (stripos($uri, $pattern) !== 0) continue;
+				if (is_string($router)) {
+					if (is_file($router)) $router = call_user_func(function($file) {
+						return require($file);}, $router);
+					elseif (class_exists($router)) $router = new $router;
+				}
+				if (! $router instanceof Router) continue;
 				if (! $router->checkdomain()) continue;
 				$luri = substr($uri, strlen($pattern)); //不允许蓝图的根路径是部分单词匹配
 				if (! empty($luri) and (rtrim($pattern, '/') == $pattern) 
 					and in_array(strtolower(substr($luri, 0, 1)), range('a', 'z'))) continue;
 				self::$group_path = rtrim(self::$group_path, '/') . '/' . ltrim($pattern, '/'); //蓝图匹配成功
-				self::$query_path = substr(self::$query_path, strlen($pattern));
+				self::$query_path = substr('/'. ltrim(self::$query_path, '/'), strlen($pattern));
 				$router->execute();
 				return -1;
 			}
